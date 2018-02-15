@@ -241,7 +241,8 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
   quadratics <- lapply(unmarked_models, FUN=quadratics_to_keep)
         vars <- original_formulas
   # set-up our run and parallelize across our cores
-  parallel::clusterExport(cl, varlist=c("umdf", "quadratics", "vars", "AIC_RESCALE_CONST", "AIC_SUBSTANTIAL_THRESHOLD"))
+  parallel::clusterExport(cl, varlist=c("AIC_RESCALE_CONST", "AIC_SUBSTANTIAL_THRESHOLD"))
+  parallel::clusterExport(cl, varlist=c("umdf", "quadratics", "vars"), envir=environment())
   vars <- parallel::parLapply(
     cl=cl,
     X=1:length(original_formulas),
@@ -520,6 +521,9 @@ s@data <- s@data[, vars]
 m_scale <- scale(s@data)
 s@data <- as.data.frame(scale(s@data))
 
+# now tack on our transect sampling effort (don't scale this)
+s$effort <- effort
+
 #
 # Build some bird models
 #
@@ -561,7 +565,7 @@ m_negbin_full_model <- fit_gdistsamp(
   umdf=umdf
 )
 
-# takes about 45 minutes
+# takes 45-90 minutes
 unmarked_models <- aic_test_quadratic_terms_gdistsamp(
   fit_gdistsamp(unmarked_models, umdf),
   original_formulas,
