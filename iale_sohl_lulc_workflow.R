@@ -475,6 +475,9 @@ if(length(argv) != 2){
   argv[3] <- "/global_workspace/terry_sohl_sres_btu_30m_landcover_predictions/extracted/gplcc_gcam_45_rcp45_2014.tif"
 }
 
+# define the covariates we are going to use for model fitting
+vars <- c("grass_ar","shrub_ar","wetland_ar","pat_ct", "mat", "map")
+
 cat(" -- fitting a HDS model for :", argv[1], "\n")
 
 r_data_file <- tolower(paste(
@@ -503,7 +506,7 @@ s <- OpenIMBCR:::calc_route_centroids(
 
 cat(
     " -- reading-in our USNG units shapefile to use for attributing our land",
-    " cover rasters\n"
+    "cover rasters\n"
   )
   
 units <- OpenIMBCR:::readOGRfromPath(argv[2])
@@ -585,8 +588,6 @@ umdf <- unmarked::unmarkedFrameGDS(
   unitsIn="m"
 )
 
-# define the covariates we are going to use for model fitting
-vars <- c("grass_ar","shrub_ar","wetland_ar","pat_ct", "mat", "map")
 
 # calculate exhaustive (all possible) variable mCombinations
 # for model selection
