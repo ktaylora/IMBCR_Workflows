@@ -23,7 +23,11 @@ CORRELATION_THRESHOLD     <- 0.65
 #
 
 backscale_var <- function(var=NULL, df=NULL, m_scale=NULL){
-  return(df[, var] * attr(m_scale, 'scaled:scale')[var] + attr(m_scale, 'scaled:center')[var] )
+  return( 
+      df[, var] * 
+      attr(m_scale, 'scaled:scale')[var] + 
+      attr(m_scale, 'scaled:center')[var] 
+    )
 }
 
 ggplot2_univar_density <- function(var=NULL, correction=1, ylab=NULL, xlab=NULL){
@@ -67,9 +71,13 @@ pts_to_landcover_metrics <- function(
     grid_units=NULL, 
     composition_statistics=NULL)
 {
+  # automatically calculate 'patch count' automatically using the 
+  # habitat covariates passed by the user as composition_statistics
   configuration_statistics <- c(
     'pat_ct'
   )
+  # whare are the valid raster cell values associated for all of our
+  # habitat composition metrics?
   valid_habitat_values <- eval(parse(
     text=paste("c(",paste(composition_statistics$src_raster_value[
       !grepl(composition_statistics$field_name, pattern="rd_ar")
@@ -137,14 +145,13 @@ plot_hn_det <- function(x=NULL, breaks=NULL){
 quadratics_to_keep <- function(m){
   direction_of_coeffs <- unmarked::coef(m)/abs(unmarked::coef(m))
   quadratic_terms <- grepl(names(unmarked::coef(m)), pattern = "[)]2")
-  # test : are we negative and are we a quadratic term?
-  keep <- (unmarked::coef(m) < 0) * quadratic_terms
-  quadratic_terms <- names(unmarked::coef(m))[keep == 1]
   # bug-fix: drop any alpha or p parameters, they mess things up
   is_lambda <- grepl(tolower(names(unmarked::coef(m))), pattern="lam")
   direction_of_coeffs <- na.omit(direction_of_coeffs[is_lambda])
-  quadratic_terms <- na.omit(quadratic_terms[is_lambda])
-  keep <- na.omit(keep[is_lambda])
+  quadratic_terms <- quadratic_terms[is_lambda]
+  # test : are we negative and are we a quadratic term?
+  keep <- (direction_of_coeffs < 0) * quadratic_terms
+  quadratic_terms <- names(direction_of_coeffs)[keep == 1]
   # no negative quadratics? then leave
   if(length(quadratic_terms)==0){
     return(NULL)
@@ -156,13 +163,14 @@ quadratics_to_keep <- function(m){
     # test: are we a positive linear term and a negative quadratic
     steps <- seq(2, length(direction_of_coeffs), by = 2) # always skip the intercept
     keep <- names(which(direction_of_coeffs[steps] + direction_of_coeffs[steps+1]  == 0))
-    # do none of our coefficients switch directions?
+    keep <- gsub(keep, pattern="[)].[)]", replacement=")")
+    keep <- gsub(keep, pattern = "lambda[(]|lam[(]", replacement="")
     if(length(keep)==0){
       return(NULL)
     }
     # are our negative quadratic(s) in the "keep" array?
     quadratic_terms <-
-      quadratic_terms[grepl(gsub(quadratic_terms, pattern=" ", ""), gsub(keep, pattern=" ", ""))]
+      quadratic_terms[gsub(quadratic_terms, pattern=" ", replacement="") %in% gsub(keep, pattern=" ", replacement="")]
     # test are both our linear and quadratic terms negative? drop if so
     if (length(quadratic_terms) > 0){
       return(quadratic_terms)
@@ -203,7 +211,7 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL){
         cl=cl,
         X=lambdas,
         fun=function(m){
-          unmarked::gdistsamp(
+          ret <- try(unmarked::gdistsamp(
             pformula=as.formula("~1"),
             lambdaformula=as.formula(paste("~", m, sep="")),
             phiformula=as.formula("~1"),
@@ -214,12 +222,17 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL){
             unitsOut="kmsq",
             mixture="NB",
             output="abund"
-          )
+          ))
+         if(class(ret) == "try-error"){
+           return(NA)
+         } else {
+           return(ret)
+         }
       })
     parallel::stopCluster(cl);
     return(unmarked_models);
   } else {
-    return(unmarked::gdistsamp(
+     ret <- try(unmarked::gdistsamp(
       pformula=as.formula("~1"),
       lambdaformula=as.formula(paste("~", unlist(lambdas), sep="")),
       phiformula=as.formula("~1"),
@@ -231,8 +244,12 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL){
       mixture="NB",
       output="abund"
     ))
+    if(class(ret) == "try-error"){
+      return(NA)
+    } else {
+      return(ret)
+    }
   }
-  return(unmarked_models)
 }
 
 aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_formulas=NULL, umdf=NULL){
@@ -240,33 +257,45 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
   # determine our run-time parameters
   quadratics <- lapply(unmarked_models, FUN=quadratics_to_keep)
         vars <- original_formulas
+  # remove any padding around our vars
+  quadratics <- lapply(quadratics, FUN=function(x) gsub(x, pattern=" ", replacement=""))
+  vars <- sapply(vars, FUN=function(x) gsub(vars, pattern=" ", replacement="")) 
+  # make our list of vars into a list of arrays
+  #vars <- lapply(vars, FUN=function(x) unlist(strsplit(x,split="[+]")) ) 
   # set-up our run and parallelize across our cores
-  parallel::clusterExport(cl, varlist=c("AIC_RESCALE_CONST", "AIC_SUBSTANTIAL_THRESHOLD"))
+  parallel::clusterExport(cl, varlist=c("AIC_RESCALE_CONST", "AIC_SUBSTANTIAL_THRESHOLD"), envir=globalenv())
   parallel::clusterExport(cl, varlist=c("umdf", "quadratics", "vars"), envir=environment())
   vars <- parallel::parLapply(
     cl=cl,
     X=1:length(original_formulas),
     fun=function(i){
       # drop the lam() prefix
-      quads <- gsub(gsub(quadratics[[i]], pattern="lambda[(]", replacement=""), pattern="[)][)]", replacement=")")
+      quads <- gsub(gsub(quadratics[[i]], pattern="lambda[(]|lam[(]", replacement=""), pattern="[)][)]", replacement=")")
       v <- vars[i]
       # drop poly() notation from the list of all covariates using in this model
-      v <- gsub(gsub(v, pattern="poly[(]", replacement=""), pattern="*.[0-2].*..*", replacement="")
+      v <- gsub(gsub(v, pattern="poly[(]", replacement=""), pattern="[,][0-2][,]raw=T[)]", replacement="")
+      v <- unlist(strsplit(v, split="[+]"))
       if(length(quads)>0){
         v <- v[!as.vector(sapply(v, FUN=function(p=NULL){ sum(grepl(x=quads, pattern=p))>0  }))]
         # use AIC to justify our proposed quadratic terms
         for(q in quads){
           lin_var <- gsub(
             q,
-            pattern=", 2,",
-            replacement=", 1,"
+            pattern=",2",
+            replacement=",1"
           )
           lambda_formula <- ifelse(
             length(v)==0,
             # empty v?
             paste(
               "~",
-              paste(c(lin_var, quads[!(quads %in% q)]), collapse="+"),
+              paste(
+                c(
+                  lin_var, 
+                  gsub(quads[!(quads %in% q)], pattern="2", replacement="1")
+                ), 
+                collapse="+"
+              ),
               "+offset(log(effort))",
               sep=""
             ),
@@ -274,8 +303,11 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
             paste(
               "~",
               paste(
-                c(paste("poly(", paste(v, ", 1, raw=T)", sep=""), sep=""),
-                lin_var, quads[!(quads %in% q)]),
+                c(
+                  paste("poly(", paste(v, ", 1, raw=T)", sep=""), sep=""),
+                  lin_var, 
+                  gsub(quads[!(quads %in% q)], pattern="2", replacement="1")
+                ),
                 collapse="+"
               ),
               "+offset(log(effort))",
@@ -301,22 +333,30 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
             # empty v?
             paste(
               "~",
-              paste(c(lin_var, quads),
-              "offset(log(effort))",
-              sep="+"),
+              paste(
+                c(
+                   gsub(lin_var, pattern="1", replacement="2"), 
+                   gsub(quads[!(quads %in% q)], pattern="2", replacement="1")
+                 ), 
+                 collapse="+"
+             ),
+              "+offset(log(effort))",
               sep=""
             ),
             # valid v?
             paste(
+              "~",
               paste(
-                "~",
-                c(paste("poly(", paste(v, ", 1, raw=T)", sep=""), sep=""),
-                lin_var, quads,
+                c(
+                  paste("poly(", paste(v, ", 1, raw=T)", sep=""), sep=""),
+                  gsub(lin_var, pattern="1", replacement="2"), 
+                  gsub(quads[!(quads %in% q)], pattern="2", replacement="1")
+                ),
                 collapse="+"
               ),
               "+offset(log(effort))",
               sep=""
-            ))
+            )
           )
           m_quad_var <- try(OpenIMBCR:::AIC(unmarked::gdistsamp(
             pformula=as.formula("~1"),
@@ -339,17 +379,18 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
             v <- c(
               v,
               gsub(
-                gsub(lin_var, pattern="poly[(]", replacement=""),
-                pattern=", [0-9], raw.*=*.T[)]",
-                replacement="")
+                x=gsub(lin_var, pattern="poly[(]", replacement=""),
+                pattern=",[0-9],raw.*=*.T[)]",
+                replacement=""
+              )
             )
           }
         }
-        v <- c(paste("poly(", paste(v, ", 1, raw=T)", sep=""), sep=""), quads)
+        v <- c(paste("poly(", paste(v, ",1,raw=T)", sep=""), sep=""), quads)
       } else {
         # if there were no valid quadratics to test, we will default to using
         # the linear form only
-        v <- c(paste("poly(", paste(v, ", 1, raw=T)", sep=""), sep=""), quads)
+        v <- c(paste("poly(", paste(v, ",1,raw=T)", sep=""), sep=""), quads)
       }
 
       return(v)
@@ -573,7 +614,7 @@ unmarked_models <- aic_test_quadratic_terms_gdistsamp(
 )
 
 # refit our models using the specification justified from testing AIC
-# across linear vs quadratic terms
+# across linear vs quadratic terms 
 unmarked_models <- fit_gdistsamp(
   lambdas=lapply(
     X=unmarked_models,
@@ -587,8 +628,46 @@ unmarked_models <- fit_gdistsamp(
   umdf=umdf
 )
 
+# sometimes models fail to converge -- they are coded as NA's
+unmarked_models <- suppressWarnings(
+    unmarked_models[ !sapply(unmarked_models, FUN=is.na) ] 
+  ) 
   
-# make some plots
-ggplot2_univar_density(var="shrub_ar", xlab="Total Area Shrubland (km2)")
+# make a fitList
+model_selection_table <- suppressWarnings(unmarked::modSel(unmarked::fitList(
+  fits=unmarked_models
+)))
 
+MOD_SEL_THRESHOLD <- max(which(model_selection_table@Full$delta < AIC_SUBSTANTIAL_THRESHOLD))
+# select the top models (by array position) that satisfy our threshold
+MOD_SEL_THRESHOLD <- as.numeric(model_selection_table@Full$model)[1:MOD_SEL_THRESHOLD]
+
+# copy our input training data over to a predict data.frame for our
+# n_hat calculation
+predict_df <- units@data
+
+aic_weights <- model_selection_table@Full$AICwt[
+    MOD_SEL_THRESHOLD
+]
+
+predicted <- par_unmarked_predict(
+  unmarked_models=unmarked_models[MOD_SEL_THRESHOLD],
+  predict_df=predict_df,
+  type="lambda",
+  weights=aic_weights
+)
+
+n_hat <- mean(predicted)
+n_hat_sd <- sd(predicted)
+
+rm(predicted)
+
+# make some plots
+#ggplot2_univar_density(var="shrub_ar", xlab="Total Area Shrubland (km2)")
+
+save(
+    compress=T,
+    list=(ls(pattern="[a-z]")),
+    file=r_data_file
+  )
 
