@@ -646,7 +646,7 @@ rgdal::writeOGR(
   pred,
   ".",
   tolower(paste(argv[2],
-      "_imbcr_hds_pois_prediction_",
+      "_imbcr_hds_negbin_prediction_",
       gsub(format(Sys.time(), "%b %d %Y"), pattern=" ", replacement="_"),
       sep="")
   ),
@@ -657,7 +657,7 @@ rgdal::writeOGR(
 r_data_file <- gsub(
     r_data_file,
     pattern="pois_glm",
-    replacement="hds_pois"
+    replacement="hds_negbin"
   )
 
 save(
