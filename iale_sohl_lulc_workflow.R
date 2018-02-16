@@ -30,7 +30,7 @@ backscale_var <- function(var=NULL, df=NULL, m_scale=NULL){
     )
 }
 
-ggplot2_univar_density <- function(var=NULL, correction=1, ylab=NULL, xlab=NULL){
+ggplot2_univar_density <- function(s=NULL, var=NULL, correction=1, ylab=NULL, xlab=NULL){
   xlim <- range( backscale_var(var, s@data, m_scale)/correction )
 
   xlim[1] <- xlim[1] - xlim[1]*0.1
@@ -519,9 +519,10 @@ units@data <- units@data[, c('mat','map')]
 cat(" -- reading in source raster data\n")
 # This is the baseline scenario for GCAM v.4.5 (RCP 4.5) that we are going 
 # to peg our IMBCR models to
-r_gcam_45_rcp45_2020 <- raster::raster(
+r_gcam_45_rcp45_2014 <- raster::raster(
     argv[3]
   )
+
 # Build a specification for the land cover raster cell values and categories
 # we are going to use (configuration [patch count] is handled explicitly
 # by our local function def (above)
@@ -550,7 +551,7 @@ cat(
 s <- pts_to_landcover_metrics(
        pts=s, 
        grid_units=units, 
-       r=r_gcam_45_rcp45_2020, 
+       r=r_gcam_45_rcp45_2014, 
        composition_statistics=composition_statistics
      )
      
