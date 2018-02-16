@@ -1,9 +1,9 @@
 #
 # Author: Kyle Taylor (2017) PLJV
 #
-# Accepts a single argument at runtime specifying the full path to 
+# Accepts a single argument at runtime specifying the full path to
 # an optionally unattributed USNG file and then does some inferential
-# statistics with the Sohl (2017) LULC dataset 
+# statistics with the Sohl (2017) LULC dataset
 #
 
 require(rgdal)
@@ -23,10 +23,10 @@ CORRELATION_THRESHOLD     <- 0.65
 #
 
 backscale_var <- function(var=NULL, df=NULL, m_scale=NULL){
-  return( 
-      df[, var] * 
-      attr(m_scale, 'scaled:scale')[var] + 
-      attr(m_scale, 'scaled:center')[var] 
+  return(
+      df[, var] *
+      attr(m_scale, 'scaled:scale')[var] +
+      attr(m_scale, 'scaled:center')[var]
     )
 }
 
@@ -38,13 +38,13 @@ ggplot2_univar_density <- function(s=NULL, var=NULL, correction=1, ylab=NULL, xl
 
   rug <- data.frame(x=backscale_var(var, s@data, m_scale) / correction)
   median <- median(rug$x)
-  
+
   ggplot(
     data=data.frame(
         mat=backscale_var(var, s@data, m_scale)
-      ) 
+      )
       , aes(mat)
-    ) + 
+    ) +
     scale_x_continuous(limits=xlim) +
     geom_density(fill='#edf8b1', alpha=0.6, color="#97a837") +
     geom_rug(aes(x), sides="b", color="#97a837", alpha=0.8, size=0.25, data=rug) +
@@ -66,12 +66,12 @@ ggplot2_univar_density <- function(s=NULL, var=NULL, correction=1, ylab=NULL, xl
 }
 
 pts_to_landcover_metrics <- function(
-    pts=NULL, 
-    r=NULL, 
-    grid_units=NULL, 
+    pts=NULL,
+    r=NULL,
+    grid_units=NULL,
     composition_statistics=NULL)
 {
-  # automatically calculate 'patch count' automatically using the 
+  # automatically calculate 'patch count' automatically using the
   # habitat covariates passed by the user as composition_statistics
   configuration_statistics <- c(
     'pat_ct'
@@ -86,12 +86,12 @@ pts_to_landcover_metrics <- function(
   # subset our units shapefile by overlapping points in s
   grid_units_over <- !is.na(sp::over(
       units, spTransform(s, sp::CRS(raster::projection(units))))[,1]
-    ) 
+    )
   units <- units[grid_units_over,]
   # zero-out our attribute table
   units@data <- data.frame(id=1:nrow(units))
   # split for list comprehension and parallelization
-  e_units <- split(units, 1:nrow(units)) 
+  e_units <- split(units, 1:nrow(units))
   # do our extractions
   e_units <- OpenIMBCR:::extract_by(e_units, r)
   # sanity-check : do we have enough units to cover our features in s?
@@ -111,9 +111,9 @@ pts_to_landcover_metrics <- function(
       )
     }
   )
-   
+
   metrics <- as.data.frame(do.call(cbind, metrics))
-  
+
   # calculate our landscape configuration metric (patch count
   metrics[, ncol(metrics)+1] <-
   OpenIMBCR::par_calc_stat(
@@ -126,7 +126,7 @@ pts_to_landcover_metrics <- function(
       from = valid_habitat_values
     )
   # settle on our column names
-  colnames(metrics) <- 
+  colnames(metrics) <-
     c(as.vector(composition_statistics$field_name), configuration_statistics)
   # return table of units to user
   s@data <- metrics
@@ -259,9 +259,9 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
         vars <- original_formulas
   # remove any padding around our vars
   quadratics <- lapply(quadratics, FUN=function(x) gsub(x, pattern=" ", replacement=""))
-  vars <- sapply(vars, FUN=function(x) gsub(vars, pattern=" ", replacement="")) 
+  vars <- sapply(vars, FUN=function(x) gsub(vars, pattern=" ", replacement=""))
   # make our list of vars into a list of arrays
-  #vars <- lapply(vars, FUN=function(x) unlist(strsplit(x,split="[+]")) ) 
+  #vars <- lapply(vars, FUN=function(x) unlist(strsplit(x,split="[+]")) )
   # set-up our run and parallelize across our cores
   parallel::clusterExport(cl, varlist=c("AIC_RESCALE_CONST", "AIC_SUBSTANTIAL_THRESHOLD"), envir=globalenv())
   parallel::clusterExport(cl, varlist=c("umdf", "quadratics", "vars"), envir=environment())
@@ -291,9 +291,9 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
               "~",
               paste(
                 c(
-                  lin_var, 
+                  lin_var,
                   gsub(quads[!(quads %in% q)], pattern="2", replacement="1")
-                ), 
+                ),
                 collapse="+"
               ),
               "+offset(log(effort))",
@@ -305,7 +305,7 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
               paste(
                 c(
                   paste("poly(", paste(v, ", 1, raw=T)", sep=""), sep=""),
-                  lin_var, 
+                  lin_var,
                   gsub(quads[!(quads %in% q)], pattern="2", replacement="1")
                 ),
                 collapse="+"
@@ -335,9 +335,9 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
               "~",
               paste(
                 c(
-                   gsub(lin_var, pattern="1", replacement="2"), 
+                   gsub(lin_var, pattern="1", replacement="2"),
                    gsub(quads[!(quads %in% q)], pattern="2", replacement="1")
-                 ), 
+                 ),
                  collapse="+"
              ),
               "+offset(log(effort))",
@@ -349,7 +349,7 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
               paste(
                 c(
                   paste("poly(", paste(v, ", 1, raw=T)", sep=""), sep=""),
-                  gsub(lin_var, pattern="1", replacement="2"), 
+                  gsub(lin_var, pattern="1", replacement="2"),
                   gsub(quads[!(quads %in% q)], pattern="2", replacement="1")
                 ),
                 collapse="+"
@@ -467,7 +467,7 @@ par_unmarked_predict <- function(unmarked_models=NULL, predict_df=NULL, type="la
 
 argv <- commandArgs(trailingOnly = T)
 
-# let's use some sane defaults just in-case the user didn't specify 
+# let's use some sane defaults just in-case the user didn't specify
 # anything at runtime
 if(length(argv) != 2){
   argv <- argv[1] # always assume we at-least offered up a bird code
@@ -476,7 +476,8 @@ if(length(argv) != 2){
 }
 
 # define the covariates we are going to use for model fitting
-vars <- c("grass_ar","shrub_ar","wetland_ar","pat_ct", "mat", "map")
+#vars <- c("grass_ar","shrub_ar","wetland_ar","pat_ct", "mat", "map")
+vars <- c("grass_ar","shrub_ar","mat", "map")
 
 cat(" -- fitting a HDS model for :", argv[1], "\n")
 
@@ -508,16 +509,16 @@ cat(
     " -- reading-in our USNG units shapefile to use for attributing our land",
     "cover rasters\n"
   )
-  
+
 units <- OpenIMBCR:::readOGRfromPath(argv[2])
 # assume we have pre-calculated long-term climate covs, drop anything else
-units@data <- units@data[, c('mat','map')] 
+units@data <- units@data[, c('mat','map')]
 # This is a standard USDA NASS (2016) dataset
 #r <- raster::raster(paste("/gis_data/Landcover/NASS/Raster/",
 #    "2016_nass_crp_test_merge.tif", sep=""
 #  ))
 cat(" -- reading in source raster data\n")
-# This is the baseline scenario for GCAM v.4.5 (RCP 4.5) that we are going 
+# This is the baseline scenario for GCAM v.4.5 (RCP 4.5) that we are going
 # to peg our IMBCR models to
 r_gcam_45_rcp45_2014 <- raster::raster(
     argv[3]
@@ -530,13 +531,13 @@ composition_statistics <-
   data.frame(
       field_name=c(
         'grass_ar',
-        'shrub_ar',
-        'wetland_ar'
+        'shrub_ar'
+        #'wetland_ar'
       ),
       src_raster_value=c(
         'c(19,26)',
-        '27',
-        'c(28,29)'
+        '27'
+        #'c(28,29)'
       )
   )
 
@@ -544,18 +545,18 @@ cat(
     " -- calculating landscape metrics for USNG units that overlap",
     "IMBCR transects\n"
   )
-  
-# Attribute our points using landscape metrics calculated from our transect 
-# points and whatever raster data occurs under a point's corresponding USNG 
+
+# Attribute our points using landscape metrics calculated from our transect
+# points and whatever raster data occurs under a point's corresponding USNG
 # unit
 s <- pts_to_landcover_metrics(
-       pts=s, 
-       grid_units=units, 
-       r=r_gcam_45_rcp45_2014, 
+       pts=s,
+       grid_units=units,
+       r=r_gcam_45_rcp45_2014,
        composition_statistics=composition_statistics
      )
-     
-# there are pre-calculated variables in the units file that we want to keep 
+
+# there are pre-calculated variables in the units file that we want to keep
 # (for climate conditions)
 s <- OpenIMBCR:::spatial_join(s, units)
 
@@ -602,7 +603,7 @@ original_formulas <- unmarked_models <- calc_all_distsamp_combinations(vars)
 m_negbin_full_model <- fit_gdistsamp(
   paste(
       paste(paste("poly(",vars,",2,raw=T)",sep=""), collapse="+"),
-      "+offset(log(effort))", 
+      "+offset(log(effort))",
       sep=""
     ),
   umdf=umdf
@@ -616,7 +617,7 @@ unmarked_models <- aic_test_quadratic_terms_gdistsamp(
 )
 
 # refit our models using the specification justified from testing AIC
-# across linear vs quadratic terms 
+# across linear vs quadratic terms
 unmarked_models <- fit_gdistsamp(
   lambdas=lapply(
     X=unmarked_models,
@@ -632,9 +633,9 @@ unmarked_models <- fit_gdistsamp(
 
 # sometimes models fail to converge -- they are coded as NA's
 unmarked_models <- suppressWarnings(
-    unmarked_models[ !sapply(unmarked_models, FUN=is.na) ] 
-  ) 
-  
+    unmarked_models[ !sapply(unmarked_models, FUN=is.na) ]
+  )
+
 # make a fitList
 model_selection_table <- suppressWarnings(unmarked::modSel(unmarked::fitList(
   fits=unmarked_models
@@ -672,4 +673,3 @@ save(
     list=(ls(pattern="[a-z]")),
     file=r_data_file
   )
-
