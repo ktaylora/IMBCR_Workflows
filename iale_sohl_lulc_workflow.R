@@ -647,7 +647,8 @@ MOD_SEL_THRESHOLD <- as.numeric(model_selection_table@Full$model)[1:MOD_SEL_THRE
 
 # copy our input training data over to a predict data.frame for our
 # n_hat calculation
-predict_df <- units@data
+
+predict_df <- s@data
 
 aic_weights <- model_selection_table@Full$AICwt[
     MOD_SEL_THRESHOLD
