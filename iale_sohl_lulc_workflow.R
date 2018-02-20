@@ -251,17 +251,17 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL){
     }
   }
 }
-
+#' this function has a ridiculous amount of complexity built into it and needs
+#' to be refactored. But building these tests into simpler function(s) will
+#' take some thinking.
 aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_formulas=NULL, umdf=NULL){
   cl <- parallel::makeCluster(parallel::detectCores()-1)
   # determine our run-time parameters
   quadratics <- lapply(unmarked_models, FUN=quadratics_to_keep)
         vars <- original_formulas
-  # remove any padding around our vars
+  # remove any padding around our vars (messes with string regular expressions)
   quadratics <- lapply(quadratics, FUN=function(x) gsub(x, pattern=" ", replacement=""))
   vars <- sapply(vars, FUN=function(x) gsub(vars, pattern=" ", replacement=""))
-  # make our list of vars into a list of arrays
-  #vars <- lapply(vars, FUN=function(x) unlist(strsplit(x,split="[+]")) )
   # set-up our run and parallelize across our cores
   parallel::clusterExport(cl, varlist=c("AIC_RESCALE_CONST", "AIC_SUBSTANTIAL_THRESHOLD"), envir=globalenv())
   parallel::clusterExport(cl, varlist=c("umdf", "quadratics", "vars"), envir=environment())
@@ -284,6 +284,8 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
             pattern=",2",
             replacement=",1"
           )
+          # lambda formula, with all variables (INCLUDING the focal variable)
+          # specified as poly(var,1)
           lambda_formula <- ifelse(
             length(v)==0,
             # empty v?
@@ -328,6 +330,8 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
           if(class(m_lin_var) == "try-error"){
             return(NA)
           }
+          # lambda formula, with all variables (EXCEPT the focal variable)
+          # specified as poly(var,1)
           lambda_formula <- ifelse(
             length(v)==0,
             # empty v?
