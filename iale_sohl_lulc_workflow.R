@@ -488,7 +488,7 @@ if(length(argv) != 2){
 # define the covariates we are going to use for model fitting
 #vars <- c("grass_ar","shrub_ar","wetland_ar","pat_ct", "mat", "map")
 #vars <- c("grass_ar","shrub_ar","mat", "map")
-vars <- c("grass_ar","shrub_ar")
+vars <- c("grass_ar","shrub_ar","pat_ct")
 
 cat(" -- fitting a HDS model for :", argv[1], "\n")
 
