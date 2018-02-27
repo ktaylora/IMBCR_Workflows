@@ -69,7 +69,8 @@ pts_to_landcover_metrics <- function(
     pts=NULL,
     r=NULL,
     grid_units=NULL,
-    composition_statistics=NULL)
+    composition_statistics=NULL,
+    force_valid_habitat_val=NULL)
 {
   # automatically calculate 'patch count' automatically using the
   # habitat covariates passed by the user as composition_statistics
@@ -78,11 +79,16 @@ pts_to_landcover_metrics <- function(
   )
   # whare are the valid raster cell values associated for all of our
   # habitat composition metrics?
-  valid_habitat_values <- eval(parse(
-    text=paste("c(",paste(composition_statistics$src_raster_value[
-      !grepl(composition_statistics$field_name, pattern="rd_ar")
-    ], collapse = ","), ")", sep="")
-  ))
+    if(is.null(force_valid_habitat_val)) {
+    valid_habitat_values <- eval(parse(
+      text=paste("c(",paste(composition_statistics$src_raster_value[
+        !grepl(composition_statistics$field_name, pattern="rd_ar")
+      ], collapse = ","), ")", sep="")
+    ))
+  } else {
+    valid_habitat_values <- force_valid_habitat_val
+  }
+
   # subset our units shapefile by overlapping points in s
   grid_units_over <- !is.na(sp::over(
       units, spTransform(s, sp::CRS(raster::projection(units))))[,1]
@@ -476,12 +482,13 @@ argv <- commandArgs(trailingOnly = T)
 if(length(argv) != 2){
   argv <- argv[1] # always assume we at-least offered up a bird code
   argv[2] <- "/global_workspace/iplan_imbcr_workspace/vector/units_attributed_nass_crp_2016_training_1km.shp"
-  argv[3] <- "/global_workspace/terry_sohl_sres_btu_30m_landcover_predictions/extracted/gplcc_gcam_45_rcp45_2014.tif"
+  argv[3] <- "/global_workspace/terry_sohl_sres_btu_30m_landcover_predictions/extracted/gplcc_gcam_45_2014.tif"
 }
 
 # define the covariates we are going to use for model fitting
 #vars <- c("grass_ar","shrub_ar","wetland_ar","pat_ct", "mat", "map")
-vars <- c("grass_ar","shrub_ar","mat", "map")
+#vars <- c("grass_ar","shrub_ar","mat", "map")
+vars <- c("grass_ar","shrub_ar")
 
 cat(" -- fitting a HDS model for :", argv[1], "\n")
 
@@ -517,6 +524,7 @@ cat(
 units <- OpenIMBCR:::readOGRfromPath(argv[2])
 # assume we have pre-calculated long-term climate covs, drop anything else
 units@data <- units@data[, c('mat','map')]
+
 # This is a standard USDA NASS (2016) dataset
 #r <- raster::raster(paste("/gis_data/Landcover/NASS/Raster/",
 #    "2016_nass_crp_test_merge.tif", sep=""
@@ -524,7 +532,7 @@ units@data <- units@data[, c('mat','map')]
 cat(" -- reading in source raster data\n")
 # This is the baseline scenario for GCAM v.4.5 (RCP 4.5) that we are going
 # to peg our IMBCR models to
-r_gcam_45_rcp45_2014 <- raster::raster(
+r_gcam_45_2014 <- raster::raster(
     argv[3]
   )
 
@@ -556,8 +564,9 @@ cat(
 s <- pts_to_landcover_metrics(
        pts=s,
        grid_units=units,
-       r=r_gcam_45_rcp45_2014,
-       composition_statistics=composition_statistics
+       r=r_gcam_45_2014,
+       composition_statistics=composition_statistics,
+       force_valid_habitat_val=c(19,26) # only use 'grass' for our config. metric
      )
 
 # there are pre-calculated variables in the units file that we want to keep
