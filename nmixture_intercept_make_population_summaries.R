@@ -10,7 +10,7 @@ species_pop_estimates <- do.call(rbind, lapply(
   FUN=function(f){
     load(f)
     return(data.frame(
-        species=argv,
+        species=argv[1],
         negbin_dens=round(m_negbin_predicted$est,2),
         negbin_se=round(m_negbin_predicted$se, 2),
         pois_dens=round(m_pois_predicted$est,2),

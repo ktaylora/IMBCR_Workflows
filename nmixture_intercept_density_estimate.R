@@ -49,6 +49,7 @@ calc_emp_dispersion_statistic <- function(x = NULL, bs=999999){
 argv <- commandArgs(trailingOnly = T)
 
 if(length(argv) < 2){
+  warning("using default (2016) IMBCR CSV")
   imbcr_csv <- "/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv"
 } else {
   imbcr_csv <- argv[2]
@@ -56,7 +57,7 @@ if(length(argv) < 2){
 
 s <- OpenIMBCR:::scrub_imbcr_df(
     OpenIMBCR:::imbcrTableToShapefile(
-        "/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv"
+        imbcr_csv
       ),
     four_letter_code = toupper(argv[1])
   )
