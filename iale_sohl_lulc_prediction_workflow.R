@@ -8,7 +8,7 @@ require(rgdal)
 AIC_RESCALE_CONST         <- 100000
 AIC_SUBSTANTIAL_THRESHOLD <- 8
 CORRELATION_THRESHOLD     <- 0.65
-NORMALIZE                 <- T
+NORMALIZE                 <- F
 
 ggplot2_multivariate_densities <- function(densities=NULL, var=NULL, correction=1, ylab=NULL, xlab=NULL){
   # color brewer colors
