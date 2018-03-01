@@ -23,10 +23,10 @@ species_pop_estimates <- do.call(rbind, lapply(
   }
 ))
 
-argv <- commandArgs(trailingOnly=T)
+filename <- commandArgs(trailingOnly=T)
 
-if(length(argv)>0){
-  filename <- argv
+if(length(filename)>0){
+  filename <- filename
 } else {
   filename <- "population_estimates.csv"
 }
