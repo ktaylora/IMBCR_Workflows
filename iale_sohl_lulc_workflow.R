@@ -17,7 +17,7 @@ require(OpenIMBCR)
 AIC_RESCALE_CONST         <- 100000
 AIC_SUBSTANTIAL_THRESHOLD <- 8
 CORRELATION_THRESHOLD     <- 0.65
-NORMALIZE_OUTPUT          <- T
+NORMALIZE                 <- T
 
 #
 # Local Functions
