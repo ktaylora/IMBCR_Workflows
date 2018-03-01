@@ -14,6 +14,9 @@
 # consider using options(error=traceback)
 options(warn = -1, error=traceback)
 
+argv <- commandArgs(trailingOnly=T)
+
+  
 #
 # Local accessory functions, some of which may overload what's
 # saved in the loaded Rdata file
@@ -44,6 +47,12 @@ calc_emp_dispersion_statistic <- function(x = NULL, bs=999999){
 #
 
 argv <- commandArgs(trailingOnly = T)
+
+if(length(argv) < 2){
+  imbcr_csv <- "/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv"
+} else {
+  imbcr_csv <- argv[2]
+}
 
 s <- OpenIMBCR:::scrub_imbcr_df(
     OpenIMBCR:::imbcrTableToShapefile(
