@@ -17,6 +17,7 @@ require(OpenIMBCR)
 AIC_RESCALE_CONST         <- 100000
 AIC_SUBSTANTIAL_THRESHOLD <- 8
 CORRELATION_THRESHOLD     <- 0.65
+NORMALIZE_OUTPUT          <- T
 
 #
 # Local Functions
@@ -209,7 +210,7 @@ calc_all_distsamp_combinations <- function(vars = NULL, poly_order=T){
   return(formulas)
 }
 
-fit_gdistsamp <- function(lambdas=NULL, umdf=NULL){
+fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="NB"){
   if(length(lambdas)>1){
     cl <- parallel::makeCluster(parallel::detectCores()-1)
     parallel::clusterExport(cl, varlist=c("umdf"))
@@ -226,7 +227,7 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL){
             K=max(rowSums(umdf@y)),
             keyfun="halfnorm",
             unitsOut="kmsq",
-            mixture="NB",
+            mixture=mixture,
             output="abund"
           ))
          if(class(ret) == "try-error"){
@@ -247,7 +248,7 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL){
       K=max(rowSums(umdf@y)),
       keyfun="halfnorm",
       unitsOut="kmsq",
-      mixture="NB",
+      mixture=mixture,
       output="abund"
     ))
     if(class(ret) == "try-error"){
@@ -611,6 +612,31 @@ original_formulas <- unmarked_models <- calc_all_distsamp_combinations(vars)
   unmarked_models <- paste(unmarked_models, "+offset(log(effort))", sep="")
 
 
+#
+# Let's get a few intercept-only density estimates to compare against our
+# predictions with covariates on lambda
+#
+
+m_negbin_intercept <- fit_gdistsamp(
+  "1+offset(log(effort))",
+  umdf=umdf,
+  mixture="NB"
+)
+
+m_pois_intercept <- fit_gdistsamp(
+  "1+offset(log(effort))",
+  umdf=umdf,
+  mixture="P"
+)
+
+m_negbin_intercept_n <- unmarked::backTransform(
+  m_negbin_intercept, 
+  type="lambda")@estimate
+
+m_pois_intercept_n <- unmarked::backTransform(
+  m_pois_intercept, 
+  type="lambda")@estimate
+
 # make an over-fit model of all variables to stare at
 # and wonder
 m_negbin_full_model <- fit_gdistsamp(
@@ -619,6 +645,17 @@ m_negbin_full_model <- fit_gdistsamp(
       "+offset(log(effort))",
       sep=""
     ),
+  mixture="NB",
+  umdf=umdf
+)
+
+m_pois_full_model <- fit_gdistsamp(
+  paste(
+      paste(paste("poly(",vars,",2,raw=T)",sep=""), collapse="+"),
+      "+offset(log(effort))",
+      sep=""
+    ),
+  mixture="P",
   umdf=umdf
 )
 
@@ -673,6 +710,11 @@ predicted <- par_unmarked_predict(
   type="lambda",
   weights=aic_weights
 )
+
+if(NORMALIZE){
+  predicted <- (predicted/mean(predicted)) * 
+    min(c(m_pois_intercept_n, m_negbin_intercept_n))
+}
 
 n_hat <- mean(predicted)
 n_hat_sd <- sd(predicted)
