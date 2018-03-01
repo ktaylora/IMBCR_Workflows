@@ -8,6 +8,7 @@ require(rgdal)
 AIC_RESCALE_CONST         <- 100000
 AIC_SUBSTANTIAL_THRESHOLD <- 8
 CORRELATION_THRESHOLD     <- 0.65
+NORMALIZE                 <- T
 
 ggplot2_multivariate_densities <- function(densities=NULL, var=NULL, correction=1, ylab=NULL, xlab=NULL){
   # color brewer colors
@@ -40,6 +41,11 @@ ggplot2_multivariate_densities <- function(densities=NULL, var=NULL, correction=
         #panel.grid.major = element_line("white"),
         axis.line=element_line("grey50")
       )
+}
+
+mean_normalization <- function(x, alternative_means=NULL){
+  x <- x/mean(x) *
+    min(alternative_means)
 }
 
 #
@@ -152,6 +158,13 @@ predicted_2014 <- par_unmarked_predict(
   weights=aic_weights
 )
 
+if(NORMALIZE){
+  predicted_2014 <- mean_normalization(
+      predicted_2014, 
+      c(m_pois_intercept_n, m_negbin_intercept_n)
+    )
+}
+
 s_2050@data <- as.data.frame(
     scale(s_2050@data[,names(s_2050)], attr(m_scale, "scaled:center")[names(s_2050)], attr(m_scale, "scaled:scale")[names(s_2050)])
   )
@@ -166,6 +179,13 @@ predicted_2050 <- par_unmarked_predict(
   weights=aic_weights
 )
 
+if(NORMALIZE){
+  predicted_2050 <- mean_normalization(
+      predicted_2050,
+      c(m_pois_intercept_n, m_negbin_intercept_n)
+    )
+}
+
 s_2100@data <-  as.data.frame(
     scale(s_2100@data[,names(s_2100)], attr(m_scale, "scaled:center")[names(s_2100)], attr(m_scale, "scaled:scale")[names(s_2100)])
   )
@@ -179,6 +199,13 @@ predicted_2100 <- par_unmarked_predict(
   type="lambda",
   weights=aic_weights
 )
+
+if(NORMALIZE){
+  predicted_2100 <- mean_normalization(
+      predicted_2100, 
+      c(m_pois_intercept_n, m_negbin_intercept_n)
+    )
+}
 
 save(
     compress=T,
