@@ -79,11 +79,17 @@ m_pois_intercept_model <- unmarked::distsamp(
     se = T,
     keyfun = "halfnorm",
     unitsOut = "kmsq",
-    output = "abund"
+    output = "density"
   )
 
-m_pois_predicted <- unmarked::backTransform(m_pois_intercept_model, type="state")
-  m_pois_predicted <- data.frame(est=m_pois_predicted@estimate, se=sqrt(m_pois_predicted@covMat))
+m_pois_predicted <- median(unmarked::predict(
+      m_pois_intercept_model, type="lambda")
+    )
+    
+m_pois_predicted <- data.frame(
+    est=median(m_pois_predicted[,1]),
+    se=median(m_pois_predicted[,2])
+  )
 
 umdf <- unmarked::unmarkedFrameGDS(
   y=as.matrix(detections$y),
@@ -102,11 +108,17 @@ m_negbin_intercept_model <- unmarked::gdistsamp(
     se = T,
     keyfun = "halfnorm",
     unitsOut = "kmsq",
-    output = "abund"
+    output = "density"
   )
 
-m_negbin_predicted <- unmarked::backTransform(m_negbin_intercept_model, type="lambda")
-  m_negbin_predicted <- data.frame(est=m_negbin_predicted@estimate, se=sqrt(m_negbin_predicted@covMat))
+m_negbin_predicted <- median(unmarked::predict(
+      m_negbin_intercept_model, type="lambda")
+    )
+    
+m_negbin_predicted <- data.frame(
+    est=median(m_negbin_predicted[,1]),
+    se=median(m_negbin_predicted[,2])
+  )
 
 r_data_file <- tolower(paste(argv[1],
       "_imbcr_intecerpt_predictions_",
