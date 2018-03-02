@@ -65,21 +65,23 @@ s <- OpenIMBCR:::scrub_imbcr_df(
 detections <- OpenIMBCR:::calc_dist_bins(s)
 effort     <- as.vector(OpenIMBCR:::calc_transect_effort(s))
 
-umdf <- unmarked::unmarkedFrameDS(
-    y=as.matrix(detections$y),
-    siteCovs=data.frame(effort=effort),
-    dist.breaks=detections$breaks,
-    survey="point",
-    unitsIn="m"
-  )
+umdf <- unmarked::unmarkedFrameGDS(
+  y=as.matrix(detections$y),
+  siteCovs=data.frame(effort=effort),
+  dist.breaks=detections$breaks,
+  numPrimary=1,
+  survey="point",
+  unitsIn="m"
+)
 
-m_pois_intercept_model <- unmarked::distsamp(
+m_pois_intercept_model <- unmarked::gdistsamp(
     formula = ~1 ~1+offset(log(effort)),
     data = umdf,
     se = T,
     keyfun = "halfnorm",
     unitsOut = "kmsq",
-    output = "density"
+    output = "density",
+    mixture="P"
   )
 
 m_pois_predicted <- unmarked::predict(
@@ -92,15 +94,6 @@ m_pois_predicted <- data.frame(
     se=median(m_pois_predicted[,2])
   )
 
-umdf <- unmarked::unmarkedFrameGDS(
-  y=as.matrix(detections$y),
-  siteCovs=data.frame(effort=effort),
-  dist.breaks=detections$breaks,
-  numPrimary=1,
-  survey="point",
-  unitsIn="m"
-)
-
 m_negbin_intercept_model <- unmarked::gdistsamp(
     lambdaformula = ~1+offset(log(effort)),
     pformula = ~1,
@@ -109,7 +102,8 @@ m_negbin_intercept_model <- unmarked::gdistsamp(
     se = T,
     keyfun = "halfnorm",
     unitsOut = "kmsq",
-    output = "density"
+    output = "density",
+    mixture="NB"
   )
 
 m_negbin_predicted <- unmarked::predict(
