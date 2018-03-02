@@ -75,7 +75,9 @@ umdf <- unmarked::unmarkedFrameGDS(
 )
 
 m_pois_intercept_model <- unmarked::gdistsamp(
-    formula = ~1 ~1+offset(log(effort)),
+    lambdaformula = ~1+offset(log(effort)),
+    pformula = ~1,
+    phiformula = ~1,
     data = umdf,
     se = T,
     keyfun = "halfnorm",
