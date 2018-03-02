@@ -82,9 +82,10 @@ m_pois_intercept_model <- unmarked::distsamp(
     output = "density"
   )
 
-m_pois_predicted <- median(unmarked::predict(
-      m_pois_intercept_model, type="lambda")
-    )
+m_pois_predicted <- unmarked::predict(
+        m_pois_intercept_model, 
+        type="lambda"
+      )
     
 m_pois_predicted <- data.frame(
     est=median(m_pois_predicted[,1]),
@@ -111,9 +112,10 @@ m_negbin_intercept_model <- unmarked::gdistsamp(
     output = "density"
   )
 
-m_negbin_predicted <- median(unmarked::predict(
-      m_negbin_intercept_model, type="lambda")
-    )
+m_negbin_predicted <- unmarked::predict(
+        m_negbin_intercept_model, 
+        type="lambda"
+      )
     
 m_negbin_predicted <- data.frame(
     est=median(m_negbin_predicted[,1]),
