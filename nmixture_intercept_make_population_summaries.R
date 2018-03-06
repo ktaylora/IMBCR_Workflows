@@ -9,7 +9,7 @@ species_pop_estimates <- do.call(rbind, lapply(
   X=r_data_files,
   FUN=function(f){
     load(f)
-    if(!exists("m_negbin_predicted")){ return(NULL) }
+    if(!exists("m_negbin_predicted")|!exists("m_pois_predicted")){ return(NULL) }
     return(data.frame(
         species=argv[1],
         negbin_dens=round(m_negbin_predicted$est,2),
