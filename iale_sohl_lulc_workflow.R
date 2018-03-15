@@ -510,6 +510,7 @@ s <- OpenIMBCR:::scrub_imbcr_df(
 
 detections <- OpenIMBCR:::calc_dist_bins(s)
 effort     <- as.vector(OpenIMBCR:::calc_transect_effort(s))
+transects  <- as.character(unique(s$transectnum))
 
 # collapse our thousands of station-level points into transect-level centroids
 s <- OpenIMBCR:::calc_route_centroids(
