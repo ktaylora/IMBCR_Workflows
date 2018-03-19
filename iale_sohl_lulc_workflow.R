@@ -140,11 +140,35 @@ pts_to_landcover_metrics <- function(
   return(s)
 }
 
-plot_hn_det <- function(x=NULL, breaks=NULL){
+plot_hn_det <- function(x=NULL, breaks=NULL, add_bins=T){
   param <- exp(unmarked::coef(x, type = "det"))
+  # first plot an empty canvas to the right dimensions
   plot(
       function(x) gxhn(x, param), 0, max(breaks),
-  	  xlab = "Distance (m)", ylab = "Detection probability"
+  	  xlab = "Distance (m)", ylab = "Detection probability",
+  	  lwd=1.5,
+  	  col="white"
+    )
+  # add bins if requested
+  if(add_bins){
+    intensities <- colSums(x@data@y)
+      intensities <- intensities/max(intensities)
+    rect(
+      x@data@dist.breaks[-length(x@data@dist.breaks)], 
+      0, 
+      x@data@dist.breaks[-1], 
+      intensities,
+      col="DarkGrey",
+      border="white"
+    )
+  }
+  # now add a red line for our detection function
+  plot(
+      function(x) gxhn(x, param), 0, max(breaks),
+  	  xlab = "Distance (m)", ylab = "Detection probability",
+  	  lwd=1.5,
+  	  col="red",
+  	  add=T
     )
   grid(); grid();
 }
@@ -503,7 +527,8 @@ r_data_file <- tolower(paste(
 
 s <- OpenIMBCR:::scrub_imbcr_df(
     OpenIMBCR:::imbcrTableToShapefile(
-        "/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv"
+        #"/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv"
+        "/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv"
       ),
     four_letter_code = toupper(argv[1])
   )

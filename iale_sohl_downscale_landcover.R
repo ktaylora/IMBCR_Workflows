@@ -1,13 +1,22 @@
+#
+# This is an experimental workflow that attempts to reconcile raster-derived
+# landcover composition metrics using field-derived measurements of percent
+# cover -- in a sense, scaling the raster based metrics using a coefficient 
+# calculated from field data. It didn't work. But a noble effort.
+#
+# Author: Kyle Taylor (kyle.taylor@pljv.org) [2018]
+#
+
 load(commandArgs(trailingOnly=T))
 
-transects <- OpenIMBCR:::scrub_imbcr_df(
+s <- OpenIMBCR:::scrub_imbcr_df(
     OpenIMBCR:::imbcrTableToShapefile(
         "/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv"
       ),
     four_letter_code = toupper(argv[1])
   )
   
-s$transect  <- as.character(unique(transects$transectnum))
+s <- OpenIMBCR:::calc_route_centroids(s)
 
 #
 # load our vegetation data and summarize by transect
@@ -58,12 +67,21 @@ veg_data <- do.call(rbind, lapply(
 # convert percent-cover to total area 
 #veg_data <- ((veg_data/100)*(rgeos::gArea(units[1,])))*(10^-6)
 
+nass_data <- OpenIMBCR:::readOGRfromPath(
+    "/global_workspace/iplan_imbcr_workspace/vector/units_attributed_nass_crp_2016_training_1km.shp"
+  )
+
+nass_data <- OpenIMBCR:::spatial_join(s, nass_data)
+  nass_data <- nass_data@data[,c('grass_ar','shrub_ar','pat_ct')]
+  
+colnames(nass_data) <- paste("nass_",colnames(nass_data), sep="")
+
 climate_data <- OpenIMBCR:::spatial_join(s, units)
-climate_data <- data.frame(scale(climate_data@data[,c('map','mat')]))
+  climate_data <- data.frame(scale(climate_data@data[,c('map','mat')]))
 
 # correlation tests
-cor(na.omit(cbind(s$grass_ar,scale(veg_data$grass))))
-cor(na.omit(cbind(s$shrub_ar,scale(veg_data$shrub))))
+cor(na.omit(cbind(scale(nass_data$nass_grass_ar),scale(veg_data$grass))))
+cor(na.omit(cbind(nass_data$nass_shrub_ar,scale(veg_data$shrub))))
 
 # fit a summary model
 fitting <- data.frame(
@@ -76,6 +94,7 @@ fitting <- data.frame(
     mat=climate_data$mat,
     map=climate_data$map
   )
+
   
 m_grass_nb_all_covs <- (MASS::glm.nb(
     grass~poly(grass_ar,1,raw=T)+poly(mat,1,raw=T)+poly(map,1,raw=T)+offset(log(effort)), 
@@ -85,7 +104,7 @@ m_grass_nb_all_covs <- (MASS::glm.nb(
 range(as.vector(round(predict(m_grass_nb, newdata=fitting, type="response")/16, 2)))
 
 m_grass_nb <- (MASS::glm.nb(
-    grass~poly(grass_ar,2,raw=T)+offset(log(effort)), 
+    grass~poly(grass_ar,15,raw=T)+offset(log(effort)), 
     data=fitting,
   ))
 
@@ -96,6 +115,8 @@ grass_cover_upscaled <- round(as.vector(round(predict(
   )/16, 2) 
   
 grass_cover_upscaled <- grass_cover_upscaled * (rgeos::gArea(units[1,]))*(10^-6)
+
+cor(na.omit(cbind(s$grass_ar,scale(grass_cover_upscaled))))
   
 #range(as.vector(round(predict(m_grass_pois, newdata=fitting, type="response")/16, 2)))
     
@@ -105,7 +126,7 @@ m_shrub_nb_all_covs <- (MASS::glm.nb(
   ))
 
 m_shrub_nb <- (MASS::glm.nb(
-    shrub~poly(shrub_ar,1,raw=T)+offset(log(effort)), 
+    shrub~poly(shrub_ar,2,raw=T)+offset(log(effort)), 
     data=fitting,
   ))
   
@@ -116,3 +137,5 @@ shrub_cover_upscaled <- round(as.vector(round(predict(
   )/16, 2)
   
 shrub_cover_upscaled <- shrub_cover_upscaled * (rgeos::gArea(units[1,]))*(10^-6)
+
+cor(na.omit(cbind(s$grass_ar,scale(shrub_cover_upscaled))))
