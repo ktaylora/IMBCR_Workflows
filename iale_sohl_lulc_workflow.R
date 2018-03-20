@@ -497,7 +497,7 @@ par_unmarked_predict <- function(unmarked_models=NULL, predict_df=NULL, type="la
 }
 
 pca_partial_reconstruction <- function(df=NULL, vars=NULL){
-  m_pca <- prcomp(df[,vars])
+  m_pca <- prcomp(df[,vars], scale.=F, center=T)
   partialed_covs <- df[,vars]
   remaining <- 1:length(vars) # make sure we never use the same component for more than one variable
   for(var in vars){
