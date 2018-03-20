@@ -237,7 +237,7 @@ calc_all_distsamp_combinations <- function(vars = NULL, poly_order=T){
 fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
   if(length(lambdas)>1){
     cl <- parallel::makeCluster(parallel::detectCores()-1)
-    parallel::clusterExport(cl, varlist=c("umdf"))
+    parallel::clusterExport(cl, varlist=c("umdf","mixture"))
     unmarked_models <- parallel::parLapply(
         cl=cl,
         X=lambdas,
@@ -285,21 +285,9 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
 #' this function has a ridiculous amount of complexity built into it and needs
 #' to be refactored. But building these tests into simpler function(s) will
 #' take some thinking.
-aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_formulas=NULL, umdf=NULL){
-  cl <- parallel::makeCluster(parallel::detectCores()-1)
-  # determine our run-time parameters
-  quadratics <- lapply(unmarked_models, FUN=quadratics_to_keep)
-        vars <- original_formulas
-  # remove any padding around our vars (messes with string regular expressions)
-  quadratics <- lapply(quadratics, FUN=function(x) gsub(x, pattern=" ", replacement=""))
-  vars <- sapply(vars, FUN=function(x) gsub(vars, pattern=" ", replacement=""))
-  # set-up our run and parallelize across our cores
-  parallel::clusterExport(cl, varlist=c("AIC_RESCALE_CONST", "AIC_SUBSTANTIAL_THRESHOLD"), envir=globalenv())
-  parallel::clusterExport(cl, varlist=c("umdf", "quadratics", "vars"), envir=environment())
-  vars <- parallel::parLapply(
-    cl=cl,
-    X=1:length(original_formulas),
-    fun=function(i){
+aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_formulas=NULL, umdf=NULL, mixture="P"){
+  # here's out built-in aic threshold method
+  aic_threshold_test <- function(i=NULL, quadratics=NULL, vars=NULL){
       # drop the lam() prefix
       quads <- gsub(gsub(quadratics[[i]], pattern="lambda[(]|lam[(]", replacement=""), pattern="[)][)]", replacement=")")
       v <- vars[i]
@@ -307,6 +295,7 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
       v <- gsub(gsub(v, pattern="poly[(]", replacement=""), pattern="[,][0-2][,]raw=T[)]", replacement="")
       v <- unlist(strsplit(v, split="[+]"))
       if(length(quads)>0){
+        # drops our linear variable from consideration in the quadratics list
         v <- v[!as.vector(sapply(v, FUN=function(p=NULL){ sum(grepl(x=quads, pattern=p))>0  }))]
         # use AIC to justify our proposed quadratic terms
         for(q in quads){
@@ -354,11 +343,15 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
             data=umdf,
             se=T,
             keyfun="halfnorm",
-            mixture="P",
+            mixture=mixture,
             unitsOut="kmsq",
             output="abund"
           )) + AIC_RESCALE_CONST)
           if(class(m_lin_var) == "try-error"){
+            warning(
+              "we failed to converge on a solution when fitting the linear model:",
+              lambda_formula
+              )
             return(NA)
           }
           # lambda formula, with all variables (EXCEPT the focal variable)
@@ -400,11 +393,15 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
             data=umdf,
             se=T,
             keyfun="halfnorm",
-            mixture="P",
+            mixture=mixture,
             unitsOut="kmsq",
             output="abund"
           )) + AIC_RESCALE_CONST)
           if(class(m_quad_var) == "try-error"){
+            warning(
+              "we failed to converge on a solution when fitting the quadratic model:",
+              lambda_formula
+            )
             return(NA)
           }
           # if we don't improve our AIC with the quadratic by at-least 8 aic units
@@ -428,12 +425,39 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
         v <- c(paste("poly(", paste(v, ",1,raw=T)", sep=""), sep=""), quads)
       }
       return(v)
-  })
-  parallel::stopCluster(cl);
+  }
+  # here is where we actually call our test
+  cl <- parallel::makeCluster(parallel::detectCores()-1)
+  # determine our run-time parameters
+  quadratics <- lapply(unmarked_models, FUN=quadratics_to_keep)
+        vars <- original_formulas
+  # remove any padding around our vars (messes with string regular expressions)
+  quadratics <- lapply(quadratics, FUN=function(x) gsub(x, pattern=" ", replacement=""))
+  vars <- sapply(vars, FUN=function(x) gsub(vars, pattern=" ", replacement=""))
+  # set-up our run and parallelize across our cores
+  #parallel::clusterExport(cl, varlist=c("AIC_RESCALE_CONST", "AIC_SUBSTANTIAL_THRESHOLD"), envir=globalenv())
+  #parallel::clusterExport(cl, varlist=c("umdf","aic_threshold_test"), envir=environment())
+  #vars <- parallel::parLapply(
+  #  cl=cl,
+  #  X=1:length(original_formulas),
+  #  fun=aic_threshold_test,
+  #  quadratics=quadratics,
+  #  vars=vars
+  #)
+  #parallel::stopCluster(cl);
+  vars <- sapply(
+    X=1:length(original_formulas),
+    FUN=function(x){
+      cat(".")
+      aic_threshold_test(i=x, quadratics=quadratics, vars=vars)
+    }
+  )
+  cat("\n")
   # sanity check -- never return a "poly(,[0-9],raw=T)" pattern
   # if this occurs, return the original formula with the linear term specified
   problems <- which(grepl(vars, pattern="poly[(],"))
   if( sum(problems) > 0 ){
+    warning("we encountered problems finding polynomical terms for vars array:",vars)
     vars[problems] <- gsub(original_formulas[problems], pattern="2", replacement="1")
   }
   return(vars);
@@ -698,12 +722,14 @@ umdf <- unmarked::unmarkedFrameGDS(
 # for model selection
 
 original_formulas <- unmarked_models <- calc_all_distsamp_combinations(vars)
-  unmarked_models <- paste(unmarked_models, "+offset(log(effort))", sep="")
+unmarked_models <- paste(unmarked_models, "+offset(log(effort))", sep="")
 
 #
 # Let's get a few intercept-only density estimates to compare against our
 # predictions with covariates on lambda
 #
+
+cat(" -- fitting intercept models for evaluation:\n")
 
 m_negbin_intercept <- fit_gdistsamp(
   "1+offset(log(effort))",
@@ -725,9 +751,12 @@ m_pois_intercept_n <- unmarked::backTransform(
   m_pois_intercept, 
   type="lambda")@estimate
 
+cat(" -- determining whether we MUST use the negative binomial mixture\n")
+
+
 # make an over-fit model of all variables to stare at
 # and wonder
-m_negbin_full_model <- fit_gdistsamp(
+m_negbin_full_model <-fit_gdistsamp(
   paste(
       paste(paste("poly(",vars,",2,raw=T)",sep=""), collapse="+"),
       "+offset(log(effort))",
@@ -747,15 +776,40 @@ m_pois_full_model <- fit_gdistsamp(
   umdf=umdf
 )
 
-# takes 45-90 minutes
+# favor the poisson mixture -- but if our data have high variance,
+# it may just fail to converge. In that case, use the negative binomial
+if(class(m_pois_full_model) == "logical"){
+  mixture <- "NB"
+} else {
+  mixture <- "P"
+}
+
+cat(" -- testing linear / quadratic terms using AIC:")
+
+# takes 45-90 minutes -- note that we have offsets here
+models <- fit_gdistsamp(unmarked_models, umdf, mixture=mixture)
+
+# sometimes models fail to converge -- they are coded as NA's
+
+original_formulas <- original_formulas[
+    suppressWarnings( !sapply(models, FUN=function(x) sum(is.na(x)) >0 ) )
+  ]
+
+models <- suppressWarnings(
+    models[ !sapply(models, FUN=function(x) sum(is.na(x)) >0 ) ]
+  )
+
+# aic_test will add an offset term onto our model formulas here
 unmarked_models <- aic_test_quadratic_terms_gdistsamp(
-  fit_gdistsamp(unmarked_models, umdf),
-  original_formulas,
-  umdf
+  unmarked_models=models,
+  original_formulas=original_formulas,
+  umdf=umdf,
+  mixture=mixture
 )
 
 # refit our models using the specification justified from testing AIC
-# across linear vs quadratic terms
+# across linear vs quadratic terms -- also, add the offset term back onto
+# the model formula
 unmarked_models <- fit_gdistsamp(
   lambdas=lapply(
     X=unmarked_models,
@@ -766,13 +820,11 @@ unmarked_models <- fit_gdistsamp(
         return(paste(x, collapse="+"))
       }
     }),
-  umdf=umdf
+  umdf=umdf,
+  mixture=mixture
 )
 
-# sometimes models fail to converge -- they are coded as NA's
-unmarked_models <- suppressWarnings(
-    unmarked_models[ !sapply(unmarked_models, FUN=is.na) ]
-  )
+cat(" -- performing model averaging tasks\n")
 
 # make a fitList
 model_selection_table <- suppressWarnings(unmarked::modSel(unmarked::fitList(
@@ -808,6 +860,9 @@ n_hat <- mean(predicted)
 n_hat_sd <- sd(predicted)
 
 rm(predicted)
+
+cat(" -- writing to disk\n")
+
 
 # make some plots
 #ggplot2_univar_density(var="shrub_ar", xlab="Total Area Shrubland (km2)")
