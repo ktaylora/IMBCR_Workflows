@@ -234,7 +234,7 @@ calc_all_distsamp_combinations <- function(vars = NULL, poly_order=T){
   return(formulas)
 }
 
-fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="NB"){
+fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
   if(length(lambdas)>1){
     cl <- parallel::makeCluster(parallel::detectCores()-1)
     parallel::clusterExport(cl, varlist=c("umdf"))
@@ -354,7 +354,7 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
             data=umdf,
             se=T,
             keyfun="halfnorm",
-            mixture="NB",
+            mixture="P",
             unitsOut="kmsq",
             output="abund"
           )) + AIC_RESCALE_CONST)
@@ -400,7 +400,7 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
             data=umdf,
             se=T,
             keyfun="halfnorm",
-            mixture="NB",
+            mixture="P",
             unitsOut="kmsq",
             output="abund"
           )) + AIC_RESCALE_CONST)
@@ -427,10 +427,15 @@ aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_fo
         # the linear form only
         v <- c(paste("poly(", paste(v, ",1,raw=T)", sep=""), sep=""), quads)
       }
-
       return(v)
   })
   parallel::stopCluster(cl);
+  # sanity check -- never return a "poly(,[0-9],raw=T)" pattern
+  # if this occurs, return the original formula with the linear term specified
+  problems <- which(grepl(vars, pattern="poly[(],"))
+  if( sum(problems) > 0 ){
+    vars[problems] <- gsub(original_formulas[problems], pattern="2", replacement="1")
+  }
   return(vars);
 }
 
@@ -516,6 +521,31 @@ pca_partial_reconstruction <- function(df=NULL, vars=NULL){
     x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(df[,var])
     #x_hat <- scale(x_hat, center = mean(df[,var]), scale = F)
     # make sure the sign matches our original cov
+    if ( cor(x_hat, df[,var]) < 0 ){
+     x_hat <- -1 * x_hat
+    }
+    # store our partialed covariate
+    partialed_covs[,var] <- x_hat
+  }
+  return(partialed_covs)
+}
+#' testing : drop covariates of middling importance and only retain the best
+#' and worst axes.
+pca_partial_reconstruction_without_middle <- function(df=NULL, vars=NULL){
+  # by default, accept scaled covariates
+  m_pca <- prcomp(df[,vars])
+  partialed_covs <- df[,vars]
+  for(var in vars){
+    col <- as.vector(c( 
+        which.max(abs(m_pca$rotation[var,])), 
+        which.min(abs(m_pca$rotation[var,])) 
+      ))
+    x_hat <- m_pca$x[,col] %*% t(m_pca$rotation[,col])
+      x_hat <- x_hat[,var] # retain only our variance for our focal variable
+    # re-scale to the max of our original input dataset  
+    x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(df[,var])
+    #x_hat <- scale(x_hat, center = mean(df[,var]), scale = F)
+    # make sure the sign matches our original cov
     #x_hat <- x_hat * as.vector( cor(x_hat, df[,var])/abs(cor(x_hat, df[,var])) )
     # store our partialed covariate
     partialed_covs[,var] <- x_hat
@@ -554,8 +584,8 @@ r_data_file <- tolower(paste(
 
 s <- OpenIMBCR:::scrub_imbcr_df(
     OpenIMBCR:::imbcrTableToShapefile(
-        #"/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv"
-        "/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv"
+        "/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv"
+        #"/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv"
       ),
     four_letter_code = toupper(argv[1])
   )
@@ -625,11 +655,14 @@ s <- pts_to_landcover_metrics(
 
 # there are pre-calculated variables in the units file that we want to keep
 # (for climate conditions)
-s <- OpenIMBCR:::spatial_join(s, units)
+s <- s_original <- OpenIMBCR:::spatial_join(s, units)
 
 # do some pca reconstruction to uncorrelate our variables
 s@data <- s@data[, vars]
-s@data[,vars] <- pca_partial_reconstruction(s@data, vars)
+s@data[,vars] <- pca_partial_reconstruction(
+    s_original@data, 
+    c(vars, "map", "mat")
+  )[, vars]
 
 # ensure a consistent scale for our input data (we will use this a lot)
 s@data <- s@data[, sapply(s@data[1,], FUN=is.numeric)]
