@@ -4,6 +4,15 @@ est_betas_stderr <- function(model_selection_table=null, var=null){
 
   stderrs <- colnames(model_selection_table@Full)
     stderrs <- stderrs[grepl(stderrs, pattern="^SElambda")]  
+  
+  akaike_wt <- !is.na(
+      model_selection_table@Full[, betas[ grepl(betas, pattern=var)] ]
+    )
+    
+  akaike_wt <- mean(
+      model_selection_table@Full[akaike_wt, 'AICwt' ],
+      na.rm=T
+    )
     
   cov_beta <- betas[grepl(betas, pattern=var)]
   cov_beta <- weighted.mean(
@@ -18,10 +27,10 @@ est_betas_stderr <- function(model_selection_table=null, var=null){
       weights=model_selection_table@Full$AICwt, 
       na.rm=T
     )
-    
+  
   ret <- as.data.frame(matrix(c(cov_beta, cov_se), ncol=2))
-    names(ret) <- paste(var,c("_beta", "_se"),sep="")
-
+    ret$wt <- akaike_wt
+  names(ret) <- paste(var,c("_beta", "_se", "_wt"),sep="")
   return(ret)
 }
 #' hidden function that will accept a single unmarked model and a target 
