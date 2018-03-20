@@ -34,6 +34,8 @@ write_route_detections <- function(name=NULL, s=NULL, write=T){
 # MAIN
 #
 
+argv <- commandArgs(trailingOnly=T)
+
 if(length(argv) < 2){
   warning("using default (2016) IMBCR CSV")
   imbcr_csv <- "/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv"
