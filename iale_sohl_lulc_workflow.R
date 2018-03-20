@@ -497,7 +497,8 @@ par_unmarked_predict <- function(unmarked_models=NULL, predict_df=NULL, type="la
 }
 
 pca_partial_reconstruction <- function(df=NULL, vars=NULL){
-  m_pca <- prcomp(df[,vars], scale.=F, center=T)
+  # by default, accept scaled covariates
+  m_pca <- prcomp(df[,vars])
   partialed_covs <- df[,vars]
   remaining <- 1:length(vars) # make sure we never use the same component for more than one variable
   for(var in vars){
@@ -511,10 +512,11 @@ pca_partial_reconstruction <- function(df=NULL, vars=NULL){
     }
     x_hat <- m_pca$x[,col] %*% t(m_pca$rotation[,col])
       x_hat <- x_hat[,col] # retain only our partial mean for THIS component
-    # re-scale to the mean of our original input dataset  
-    x_hat <- scale(x_hat, center = mean(df[,var]), scale = FALSE)
+    # re-scale to the max of our original input dataset  
+    x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(df[,var])
+    #x_hat <- scale(x_hat, center = mean(df[,var]), scale = F)
     # make sure the sign matches our original cov
-    x_hat <- x_hat * as.vector( cor(x_hat, df[,var])/abs(cor(x_hat, df[,var])) )
+    #x_hat <- x_hat * as.vector( cor(x_hat, df[,var])/abs(cor(x_hat, df[,var])) )
     # store our partialed covariate
     partialed_covs[,var] <- x_hat
   }
@@ -625,15 +627,18 @@ s <- pts_to_landcover_metrics(
 # (for climate conditions)
 s <- OpenIMBCR:::spatial_join(s, units)
 
-# ensure a consistent scale for our input data (we will use this a lot)
+# do some pca reconstruction to uncorrelate our variables
 s@data <- s@data[, vars]
-  s@data <- s@data[, sapply(s@data[1,], FUN=is.numeric)]
+s@data[,vars] <- pca_partial_reconstruction(s@data, vars)
 
+# ensure a consistent scale for our input data (we will use this a lot)
+s@data <- s@data[, sapply(s@data[1,], FUN=is.numeric)]
 m_scale <- scale(s@data)
 s@data <- as.data.frame(scale(s@data))
 
 # now tack on our transect sampling effort (don't scale this)
 s$effort <- effort
+
 
 #
 # Build some bird models
@@ -661,7 +666,6 @@ umdf <- unmarked::unmarkedFrameGDS(
 
 original_formulas <- unmarked_models <- calc_all_distsamp_combinations(vars)
   unmarked_models <- paste(unmarked_models, "+offset(log(effort))", sep="")
-
 
 #
 # Let's get a few intercept-only density estimates to compare against our
