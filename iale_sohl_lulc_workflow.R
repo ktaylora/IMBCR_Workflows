@@ -496,6 +496,31 @@ par_unmarked_predict <- function(unmarked_models=NULL, predict_df=NULL, type="la
    }
 }
 
+pca_partial_reconstruction <- function(df=NULL, vars=NULL){
+  m_pca <- prcomp(df[,vars])
+  partialed_covs <- df[,vars]
+  remaining <- 1:length(vars) # make sure we never use the same component for more than one variable
+  for(var in vars){
+    if(length(remaining)>1){
+      col <- which.max(abs(m_pca$rotation[var,]))
+      remaining <- remaining[ remaining != col ]
+    } else {
+      # if we only have one remaining rotation to use, use it (even 
+      # if it's not the best fit)
+      col <- remaining
+    }
+    x_hat <- m_pca$x[,col] %*% t(m_pca$rotation[,col])
+      x_hat <- x_hat[,col] # retain only our partial mean for THIS component
+    # re-scale to the mean of our original input dataset  
+    x_hat <- scale(x_hat, center = mean(df[,var]), scale = FALSE)
+    # make sure the sign matches our original cov
+    x_hat <- x_hat * as.vector( cor(x_hat, df[,var])/abs(cor(x_hat, df[,var])) )
+    # store our partialed covariate
+    partialed_covs[,var] <- x_hat
+  }
+  return(partialed_covs)
+}
+
 #
 # Main
 #
