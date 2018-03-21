@@ -198,6 +198,10 @@ if(NORMALIZE){
     )
 }
 
+s_2050@data <- cbind(s_2050@data, s_original@data[,c("map", "mat")])
+s_2050@data <- pca_reconstruction(original_data=s_original@data, newdata=s_2050@data, vars=c(vars, "map", "mat"))
+  s_2050@data <- s_2050@data[,vars]
+  
 s_2050@data <- as.data.frame(
     scale(s_2050@data[,names(s_2050)], attr(m_scale, "scaled:center")[names(s_2050)], attr(m_scale, "scaled:scale")[names(s_2050)])
   )
@@ -219,6 +223,11 @@ if(NORMALIZE){
     )
 }
 
+
+s_2100@data <- cbind(s_2100@data, s_original@data[,c("map", "mat")])
+s_2100@data <- pca_reconstruction(original_data=s_original@data, newdata=s_2100@data, vars=c(vars, "map", "mat"))
+  s_2100@data <- s_2100@data[,vars]
+  
 s_2100@data <-  as.data.frame(
     scale(s_2100@data[,names(s_2100)], attr(m_scale, "scaled:center")[names(s_2100)], attr(m_scale, "scaled:scale")[names(s_2100)])
   )
