@@ -541,13 +541,12 @@ pca_partial_reconstruction <- function(df=NULL, vars=NULL){
     }
     x_hat <- m_pca$x[,col] %*% t(m_pca$rotation[,col])
       x_hat <- x_hat[,col] # retain only our partial mean for THIS component
-    # re-scale to the max of our original input dataset  
-    x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(df[,var])
-    #x_hat <- scale(x_hat, center = mean(df[,var]), scale = F)
     # make sure the sign matches our original cov
-    if ( cor(x_hat, df[,var]) < 0 ){
+    if ( cor(x_hat, newdata[,var]) < 0 ){
      x_hat <- -1 * x_hat
     }
+    # re-scale to the max of our original input dataset  
+    x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(df[,var])
     # store our partialed covariate
     partialed_covs[,var] <- x_hat
   }

@@ -64,13 +64,13 @@ pca_reconstruction <- function(original_data=NULL, newdata=NULL, vars=NULL){
     }
     x_hat <- x[,col] %*% t(m_pca$rotation[,col])
       x_hat <- x_hat[,col] # retain only our partial mean for THIS component
-    # re-scale to the max of our original input dataset  
-    x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(newdata[,var])
-    #x_hat <- scale(x_hat, center = mean(df[,var]), scale = F)
     # make sure the sign matches our original cov
     if ( cor(x_hat, newdata[,var]) < 0 ){
      x_hat <- -1 * x_hat
     }
+    # re-scale to the max of our original input dataset  
+    x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(newdata[,var])
+    #x_hat <- scale(x_hat, center = mean(df[,var]), scale = F)
     # store our partialed covariate
     partialed_covs[,var] <- x_hat
   }
@@ -173,6 +173,7 @@ MOD_SEL_THRESHOLD <- as.numeric(model_selection_table@Full$model)[1:MOD_SEL_THRE
 # Scale our datasets so they are consistent for predict()
 #
 
+s_2014@data <- cbind(s_2014@data, s_original@data[,c("map", "mat")])
 s_2014@data <- pca_reconstruction(original_data=s_original@data, newdata=s_2014@data, vars=c(vars, "map", "mat"))
   s_2014@data <- s_2014@data[,vars]
 
