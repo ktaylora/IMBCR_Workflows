@@ -47,8 +47,11 @@ mean_normalization <- function(x, alternative_means=NULL){
   x <- x/mean(x) *
     min(alternative_means)
 }
-
-pca_reconstruction <- function(original_data=NULL, newdata=NULL, vars=NULL){
+#' testing: attempt to use a PCA model object from an earlier dataset to
+#' transform a new dataset. This doesn't behave well currently -- there are
+#' some non-linear quirks that show-up when you try and use this for making
+#' predictions using land cover
+pca_transform <- function(original_data=NULL, newdata=NULL, vars=NULL){
   m_pca <- prcomp(original_data[, vars])
   x <- predict(m_pca, newdata=newdata[,vars])
   partialed_covs <- newdata[,vars]
@@ -76,7 +79,37 @@ pca_reconstruction <- function(original_data=NULL, newdata=NULL, vars=NULL){
   }
   return(partialed_covs)
 }
-
+#' testing: standard PCA reconstruction that, for each variable, will find
+#' the principal component that captures the greatest variance and then 
+#' partition-out that component and use it's variance to reconstruct the
+#' original covariate
+pca_partial_reconstruction <- function(df=NULL, vars=NULL){
+  # by default, accept scaled covariates
+  m_pca <- prcomp(df[,vars])
+  partialed_covs <- df[,vars]
+  remaining <- 1:length(vars) # make sure we never use the same component for more than one variable
+  for(var in vars){
+    if(length(remaining)>1){
+      col <- which.max(abs(m_pca$rotation[var,]))
+      remaining <- remaining[ remaining != col ]
+    } else {
+      # if we only have one remaining rotation to use, use it (even 
+      # if it's not the best fit)
+      col <- remaining
+    }
+    x_hat <- m_pca$x[,col] %*% t(m_pca$rotation[,col])
+      x_hat <- x_hat[,col] # retain only our partial mean for THIS component
+    # make sure the sign matches our original cov
+    if ( cor(x_hat, df[,var]) < 0 ){
+     x_hat <- -1 * x_hat
+    }
+    # re-scale to the max of our original input dataset  
+    x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(df[,var])
+    # store our partialed covariate
+    partialed_covs[,var] <- x_hat
+  }
+  return(partialed_covs)
+}
 #
 # Main
 #
@@ -174,8 +207,13 @@ MOD_SEL_THRESHOLD <- as.numeric(model_selection_table@Full$model)[1:MOD_SEL_THRE
 #
 
 s_2014@data <- cbind(s_2014@data, s_original@data[,c("map", "mat")])
-s_2014@data <- pca_reconstruction(original_data=s_original@data, newdata=s_2014@data, vars=c(vars, "map", "mat"))
-  s_2014@data <- s_2014@data[,vars]
+
+s_2014@data <- pca_partial_reconstruction(
+    df=s_2014@data, 
+    vars=c(vars, "map", "mat")
+  )
+
+s_2014@data <- s_2014@data[,vars]
 
 s_2014@data <- as.data.frame(
     scale(s_2014@data[,names(s_2014)], attr(m_scale, "scaled:center")[names(s_2014)], attr(m_scale, "scaled:scale")[names(s_2014)])
@@ -199,8 +237,8 @@ if(NORMALIZE){
 }
 
 s_2050@data <- cbind(s_2050@data, s_original@data[,c("map", "mat")])
-s_2050@data <- pca_reconstruction(original_data=s_original@data, newdata=s_2050@data, vars=c(vars, "map", "mat"))
-  s_2050@data <- s_2050@data[,vars]
+  s_2050@data <- pca_partial_reconstruction(df=s_2050@data, vars=c(vars, "map", "mat"))
+    s_2050@data <- s_2050@data[,vars]
   
 s_2050@data <- as.data.frame(
     scale(s_2050@data[,names(s_2050)], attr(m_scale, "scaled:center")[names(s_2050)], attr(m_scale, "scaled:scale")[names(s_2050)])
@@ -225,7 +263,7 @@ if(NORMALIZE){
 
 
 s_2100@data <- cbind(s_2100@data, s_original@data[,c("map", "mat")])
-s_2100@data <- pca_reconstruction(original_data=s_original@data, newdata=s_2100@data, vars=c(vars, "map", "mat"))
+s_2100@data <- pca_partial_reconstruction(df=s_2100@data, vars=c(vars, "map", "mat"))
   s_2100@data <- s_2100@data[,vars]
   
 s_2100@data <-  as.data.frame(

@@ -286,7 +286,7 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
 #' to be refactored. But building these tests into simpler function(s) will
 #' take some thinking.
 aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_formulas=NULL, umdf=NULL, mixture="P"){
-  # here's out built-in aic threshold method
+  # here's out built-in aic threshold method that needs to be refactored
   aic_threshold_test <- function(i=NULL, quadratics=NULL, vars=NULL){
       # drop the lam() prefix
       quads <- gsub(gsub(quadratics[[i]], pattern="lambda[(]|lam[(]", replacement=""), pattern="[)][)]", replacement=")")
@@ -524,7 +524,10 @@ par_unmarked_predict <- function(unmarked_models=NULL, predict_df=NULL, type="la
      return(predicted)
    }
 }
-
+#' testing: standard PCA reconstruction that, for each variable, will find
+#' the principal component that captures the greatest variance and then 
+#' partition-out that component and use it's variance to reconstruct the
+#' original covariate
 pca_partial_reconstruction <- function(df=NULL, vars=NULL){
   # by default, accept scaled covariates
   m_pca <- prcomp(df[,vars])
@@ -542,7 +545,7 @@ pca_partial_reconstruction <- function(df=NULL, vars=NULL){
     x_hat <- m_pca$x[,col] %*% t(m_pca$rotation[,col])
       x_hat <- x_hat[,col] # retain only our partial mean for THIS component
     # make sure the sign matches our original cov
-    if ( cor(x_hat, newdata[,var]) < 0 ){
+    if ( cor(x_hat, df[,var]) < 0 ){
      x_hat <- -1 * x_hat
     }
     # re-scale to the max of our original input dataset  
