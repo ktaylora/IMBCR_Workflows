@@ -141,6 +141,35 @@ plot_var_response <- function(m=NULL, var=NULL, plot=T, xlim=NULL, ylim=NULL, xl
   }
 }
 
+pca_reconstruction <- function(original_data=NULL, newdata=NULL, vars=NULL){
+  m_pca <- prcomp(original_data[, vars])
+  x <- predict(m_pca, newdata=newdata[,vars])
+  partialed_covs <- newdata[,vars]
+  remaining <- 1:length(vars) # make sure we never use the same component for more than one variable
+  for(var in vars){
+    if(length(remaining)>1){
+      col <- which.max(abs(m_pca$rotation[var,]))
+      remaining <- remaining[ remaining != col ]
+    } else {
+      # if we only have one remaining rotation to use, use it (even 
+      # if it's not the best fit)
+      col <- remaining
+    }
+    x_hat <- x[,col] %*% t(m_pca$rotation[,col])
+      x_hat <- x_hat[,col] # retain only our partial mean for THIS component
+    # re-scale to the max of our original input dataset  
+    x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(newdata[,var])
+    #x_hat <- scale(x_hat, center = mean(df[,var]), scale = F)
+    # make sure the sign matches our original cov
+    if ( cor(x_hat, newdata[,var]) < 0 ){
+     x_hat <- -1 * x_hat
+    }
+    # store our partialed covariate
+    partialed_covs[,var] <- x_hat
+  }
+  return(partialed_covs)
+}
+
 y_range <- c(
     0, 
     floor(max(unmarked::predict(m_negbin_intercept, type="lambda")[,1]))

@@ -556,7 +556,8 @@ pca_partial_reconstruction <- function(df=NULL, vars=NULL){
 #' testing : drop covariates of middling importance and only retain the best
 #' and worst axes.
 pca_partial_reconstruction_without_middle <- function(df=NULL, vars=NULL){
-  # by default, accept scaled covariates
+  # by default, accept un-scaled covariates -- we will do the scaling
+  # and then return components in the raw scale of the input data
   m_pca <- prcomp(df[,vars])
   partialed_covs <- df[,vars]
   for(var in vars){
