@@ -141,10 +141,10 @@ plot_var_response <- function(m=NULL, var=NULL, plot=T, xlim=NULL, ylim=NULL, xl
   }
 }
 
-pca_reconstruction <- function(original_data=NULL, newdata=NULL, vars=NULL){
-  m_pca <- prcomp(original_data[, vars])
-  x <- predict(m_pca, newdata=newdata[,vars])
-  partialed_covs <- newdata[,vars]
+pca_partial_reconstruction <- function(df=NULL, vars=NULL){
+  # by default, accept scaled covariates
+  m_pca <- prcomp(df[,vars])
+  partialed_covs <- df[,vars]
   remaining <- 1:length(vars) # make sure we never use the same component for more than one variable
   for(var in vars){
     if(length(remaining)>1){
@@ -155,19 +155,45 @@ pca_reconstruction <- function(original_data=NULL, newdata=NULL, vars=NULL){
       # if it's not the best fit)
       col <- remaining
     }
-    x_hat <- x[,col] %*% t(m_pca$rotation[,col])
+    x_hat <- m_pca$x[,col] %*% t(m_pca$rotation[,col])
       x_hat <- x_hat[,col] # retain only our partial mean for THIS component
-    # re-scale to the max of our original input dataset  
-    x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(newdata[,var])
-    #x_hat <- scale(x_hat, center = mean(df[,var]), scale = F)
     # make sure the sign matches our original cov
-    if ( cor(x_hat, newdata[,var]) < 0 ){
+    if ( cor(x_hat, df[,var]) < 0 ){
      x_hat <- -1 * x_hat
     }
+    # re-scale to the max of our original input dataset  
+    x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(df[,var])
     # store our partialed covariate
     partialed_covs[,var] <- x_hat
   }
   return(partialed_covs)
+}
+
+mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+calc_density_mins <- function(){
+  return(
+    data.frame(
+      d_2014=min(median(predicted_2014), mean(predicted_2014)),
+      d_2050=min(median(predicted_2050), mean(predicted_2050)),
+      d_2100=min(median(predicted_2100), mean(predicted_2100))
+    ))
+}
+
+calc_sum_density_change <- function(predicted_2014=NULL, predicted_2050=NULL, predicted_2100=NULL){
+  # let's find a less lossy way of capturing density changes than taking the difference of two mean's
+  # or median's. Let's invert it, so the CT is taken of the difference
+  d <- 
+    data.frame(
+      d_2014=0,
+      d_2050=mode(predicted_2050-predicted_2014), # median decline (birds/transect)
+      d_2100=mode(predicted_2100-predicted_2014) 
+    )
+  # now add the median difference to whatever the lowest measure of CT was
+  return( d + mode(predicted_2014) )
 }
 
 y_range <- c(

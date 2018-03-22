@@ -286,7 +286,7 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
 #' to be refactored. But building these tests into simpler function(s) will
 #' take some thinking.
 aic_test_quadratic_terms_gdistsamp <- function(unmarked_models=NULL, original_formulas=NULL, umdf=NULL, mixture="P"){
-  # here's out built-in aic threshold method that needs to be refactored
+  # here's our built-in aic threshold method that needs to be refactored
   aic_threshold_test <- function(i=NULL, quadratics=NULL, vars=NULL){
       # drop the lam() prefix
       quads <- gsub(gsub(quadratics[[i]], pattern="lambda[(]|lam[(]", replacement=""), pattern="[)][)]", replacement=")")
@@ -562,13 +562,17 @@ pca_partial_reconstruction_without_middle <- function(df=NULL, vars=NULL){
   # and then return components in the raw scale of the input data
   m_pca <- prcomp(df[,vars])
   partialed_covs <- df[,vars]
-  for(var in vars){
+  for(var in vars){n
     col <- as.vector(c( 
         which.max(abs(m_pca$rotation[var,])), 
         which.min(abs(m_pca$rotation[var,])) 
       ))
     x_hat <- m_pca$x[,col] %*% t(m_pca$rotation[,col])
       x_hat <- x_hat[,var] # retain only our variance for our focal variable
+    # make sure the sign matches our original cov
+    if ( cor(x_hat, df[,var]) < 0 ){
+     x_hat <- -1 * x_hat
+    }
     # re-scale to the max of our original input dataset  
     x_hat <- ( x_hat - min(x_hat) ) / ( max(x_hat) - min(x_hat) )  * max(df[,var])
     #x_hat <- scale(x_hat, center = mean(df[,var]), scale = F)

@@ -1,6 +1,8 @@
 require(raster)
 require(rgdal)
 
+load(commandArgs(trailingOnly=T))
+
 #
 # Runtime Parameters
 #
@@ -110,11 +112,10 @@ pca_partial_reconstruction <- function(df=NULL, vars=NULL){
   }
   return(partialed_covs)
 }
+
 #
 # Main
 #
-
-load(commandArgs(trailingOnly=T))
 
 r_data_file <- tolower(paste(
       tolower(argv[1]),
@@ -195,7 +196,7 @@ patch_densities <- rbind(
   )
 
 # dev.new()
-# ggplot2_multivariate_densities(patch_densities, var='pat_ct', xlab="Patchiness [Patch Count] (km2)")
+#ggplot2_multivariate_densities(patch_densities, var='pat_ct', xlab="Patchiness [Patch Count] (km2)")
 
 # Re-build our model selection criterion
 MOD_SEL_THRESHOLD <- max(which(model_selection_table@Full$delta < AIC_SUBSTANTIAL_THRESHOLD))
@@ -215,18 +216,22 @@ s_2014@data <- pca_partial_reconstruction(
 
 s_2014@data <- s_2014@data[,vars]
 
+# There is something really strange happening when we try to mean-center the
+# new land cover with the old scale object -- figure it out
+
 s_2014@data <- as.data.frame(
-    scale(s_2014@data[,names(s_2014)], attr(m_scale, "scaled:center")[names(s_2014)], attr(m_scale, "scaled:scale")[names(s_2014)])
+    scale(s_2014@data[,names(s_2014)], center=attr(m_scale, "scaled:center")[names(s_2014)], scale=attr(m_scale, "scaled:scale")[names(s_2014)])
   )
+
 
 #s_2014@data <- cbind(s_2014@data, s@data[,c('mat','map')])
 s_2014$effort <- effort
 
 predicted_2014 <- par_unmarked_predict(
-  unmarked_models=unmarked_models[MOD_SEL_THRESHOLD],
+  unmarked_models=unmarked_models,
   predict_df=s_2014@data,
   type="lambda",
-  weights=aic_weights
+  weights=model_selection_table@Full$AICwt
 )
 
 if(NORMALIZE){
@@ -248,10 +253,10 @@ s_2050@data <- as.data.frame(
 s_2050$effort <- effort
 
 predicted_2050 <- par_unmarked_predict(
-  unmarked_models=unmarked_models[MOD_SEL_THRESHOLD],
+  unmarked_models=unmarked_models,
   predict_df=s_2050@data,
   type="lambda",
-  weights=aic_weights
+  weights=model_selection_table@Full$AICwt
 )
 
 if(NORMALIZE){
@@ -274,10 +279,10 @@ s_2100@data <-  as.data.frame(
 s_2100$effort <- effort
 
 predicted_2100 <- par_unmarked_predict(
-  unmarked_models=unmarked_models[MOD_SEL_THRESHOLD],
+  unmarked_models=unmarked_models,
   predict_df=s_2100@data,
   type="lambda",
-  weights=aic_weights
+  weights=model_selection_table@Full$AICwt
 )
 
 if(NORMALIZE){
