@@ -169,10 +169,7 @@ pca_partial_reconstruction <- function(df=NULL, vars=NULL){
   return(partialed_covs)
 }
 
-mode <- function(x) {
-  ux <- unique(x)
-  ux[which.max(tabulate(match(x, ux)))]
-}
+
 
 calc_density_mins <- function(){
   return(
@@ -183,17 +180,25 @@ calc_density_mins <- function(){
     ))
 }
 
-calc_sum_density_change <- function(predicted_2014=NULL, predicted_2050=NULL, predicted_2100=NULL){
+calc_sum_density_change <- function(){
   # let's find a less lossy way of capturing density changes than taking the difference of two mean's
   # or median's. Let's invert it, so the CT is taken of the difference
+  mode <- function(x) {
+    ux <- unique(x)
+    ux[which.max(tabulate(match(x, ux)))]
+  }
+  ct <- function(x){
+    # this is ridiculous -- we need a larger sample size
+    return(mean(c(mode(x),mean(x), median(x))))
+  } 
   d <- 
     data.frame(
       d_2014=0,
-      d_2050=mode(predicted_2050-predicted_2014), # median decline (birds/transect)
-      d_2100=mode(predicted_2100-predicted_2014) 
+      d_2050=ct(predicted_2050-predicted_2014), # median decline (birds/transect)
+      d_2100=ct(predicted_2100-predicted_2014) 
     )
   # now add the median difference to whatever the lowest measure of CT was
-  return( d + mode(predicted_2014) )
+  return( d + ct(predicted_2014) )
 }
 
 y_range <- c(
