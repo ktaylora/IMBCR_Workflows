@@ -45,6 +45,39 @@ ggplot2_multivariate_densities <- function(densities=NULL, var=NULL, correction=
       )
 }
 
+ggplot2_grass_vs_shrub <- function(densities=NULL, var=NULL, correction=1, ylab=NULL, xlab=NULL){
+  # color brewer colors
+  xlim <- range(densities[,2]) / correction
+
+  xlim[1] <- xlim[1] - abs(xlim[1])*0.1
+  xlim[2] <- xlim[2] + abs(xlim[2])*0.1
+
+  rugs <- densities
+  rugs[,2] <- rugs[,2] / correction
+
+  densities$year <- as.factor(densities$year)
+  rugs$year <- as.factor(rugs$year)
+
+  gg_plot <- ggplot(densities, aes_string(var, fill = 'year', col = 'year')) + geom_density(alpha=0.65)
+  gg_plot <- gg_plot + scale_x_continuous(limits=xlim)
+  gg_plot <- gg_plot + geom_rug(aes_string(var, color='year'), sides="b", size=0.25, alpha=0.8, data=rugs)
+  gg_plot <- gg_plot + xlab(xlab) + ylab(ylab)
+  gg_plot <- gg_plot + scale_fill_brewer(type = 'seq', palette="PuOr") + scale_color_brewer(type = 'seq', palette="PuOr")
+
+  gg_plot +
+    theme(
+        axis.text = element_text(face="bold",size=10),
+        text = element_text(face="bold",size=12),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        #panel.background = element_blank(),
+        #panel.grid.minor = element_blank(),
+        #panel.grid.major = element_line("white"),
+        axis.line=element_line("grey50")
+      )
+}
+
 mean_normalization <- function(x, alternative_means=NULL){
   x <- x/mean(x) *
     min(alternative_means)
@@ -178,7 +211,7 @@ shrub_densities <- rbind(
   )
 
 # dev.new()
-# ggplot2_multivariate_densities(shrub_densities, var='shrub_ar', xlab="Shrubland [Total Area] (km2)")
+ggplot2_multivariate_densities(shrub_densities, var='shrub_ar', xlab="Shrubland [Total Area] (km2)")
 
 # wetland_densities <- rbind(
 #     data.frame(year=2016, wetland_ar=s_2014$wetland_ar),
@@ -284,6 +317,24 @@ predicted_2100 <- par_unmarked_predict(
   type="lambda",
   weights=model_selection_table@Full$AICwt
 )
+
+mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+ct <- function(x){
+  # this is ridiculous -- we need a larger sample size
+  return(mean(c(mode(x),mean(x), median(x))))
+} 
+
+suppressWarnings(data.frame(
+  mean_dens=ct(predicted_2014),
+  mean_error=ct(unmarked::predict(m_pois_intercept, type="lambda")[,1]-predicted_2014),
+  cint=plotrix::std.error(unmarked::predict(m_pois_intercept, type="lambda")[,1]-predicted_2014)*1.96,
+  pi_range=diff(range(unmarked::predict(m_pois_intercept, type="lambda")[,1]-predicted_2014))
+))
+
 
 if(NORMALIZE){
   predicted_2100 <- mean_normalization(
