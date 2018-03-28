@@ -10,7 +10,6 @@ load(commandArgs(trailingOnly=T))
 AIC_RESCALE_CONST         <- 100000
 AIC_SUBSTANTIAL_THRESHOLD <- 8
 CORRELATION_THRESHOLD     <- 0.65
-NORMALIZE                 <- F
 
 ggplot2_multivariate_densities <- function(densities=NULL, var=NULL, correction=1, ylab=NULL, xlab=NULL){
   # color brewer colors
@@ -334,14 +333,6 @@ suppressWarnings(data.frame(
   cint=plotrix::std.error(unmarked::predict(m_pois_intercept, type="lambda")[,1]-predicted_2014)*1.96,
   pi_range=diff(range(unmarked::predict(m_pois_intercept, type="lambda")[,1]-predicted_2014))
 ))
-
-
-if(NORMALIZE){
-  predicted_2100 <- mean_normalization(
-      predicted_2100, 
-      c(m_pois_intercept_n, m_negbin_intercept_n)
-    )
-}
 
 save(
     compress=T,

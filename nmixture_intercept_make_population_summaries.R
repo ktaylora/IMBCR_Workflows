@@ -9,17 +9,13 @@ species_pop_estimates <- do.call(rbind, lapply(
   X=r_data_files,
   FUN=function(f){
     load(f)
-    if(!exists("m_negbin_predicted")|!exists("m_pois_predicted")){ return(NULL) }
+    if(!exists("density_ensemble")|!exists("se_ensemble")){ return(NULL) }
     return(data.frame(
         species=argv[1],
-        negbin_dens=round(m_negbin_predicted$est,2),
-        negbin_se=round(m_negbin_predicted$se, 2),
-        pois_dens=round(m_pois_predicted$est,2),
-        pois_se=round(m_pois_predicted$se,2),
-        n_negbin=round(AREA_OF_PLJV_KM*m_negbin_predicted$est),
-        n_se_negbin=round(AREA_OF_PLJV_KM*m_negbin_predicted$se),
-        n_pois=round(AREA_OF_PLJV_KM*m_pois_predicted$est),
-        n_se_pois=round(AREA_OF_PLJV_KM*m_pois_predicted$se)
+        dens=round(density_ensemble, 2),
+        se=round(se_ensemble,2),
+        n=round(AREA_OF_PLJV_KM*round(density_ensemble, 2)),
+        n_se=round(AREA_OF_PLJV_KM*se_ensemble)
       ))
   }
 ))

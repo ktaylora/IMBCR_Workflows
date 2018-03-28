@@ -21,7 +21,14 @@ argv <- commandArgs(trailingOnly=T)
 # Local accessory functions, some of which may overload what's
 # saved in the loaded Rdata file
 #
-
+mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+ct <- function(x){
+  # this is ridiculous -- we need a larger sample size
+  return(mean(c(mode(x),mean(x), median(x))))
+} 
 plot_hn_det <- function(x=NULL, breaks=NULL){
   param <- exp(unmarked::coef(x, type = "det"))
   plot(
@@ -87,8 +94,8 @@ m_pois_intercept_model <- unmarked::gdistsamp(
     mixture="P"
   )
 
-m_pois_alternative_model <- unmarked::gdistsamp(
-    lambdaformula = ~poly(lat,2)+poly(lon,2)+offset(log(effort)),
+m_pois_alternative_model_simple <- unmarked::gdistsamp(
+    lambdaformula = ~poly(lat,1)+poly(lon,1)+offset(log(effort)),
     pformula = ~1,
     phiformula = ~1,
     data = umdf,
@@ -99,14 +106,46 @@ m_pois_alternative_model <- unmarked::gdistsamp(
     mixture="P"
   )
 
-m_pois_predicted <- unmarked::predict(
-        m_pois_alternative_model, 
+m_pois_alternative_model_complex <- unmarked::gdistsamp(
+    lambdaformula = ~poly(lat,4)+poly(lon,4)+offset(log(effort)),
+    pformula = ~1,
+    phiformula = ~1,
+    data = umdf,
+    se = T,
+    keyfun = "halfnorm",
+    unitsOut = "kmsq",
+    output = "density",
+    mixture="P"
+  )
+
+m_pois_int_predicted <- unmarked::predict(
+        m_pois_intercept_model, 
         type="lambda"
       )
     
-m_pois_predicted <- data.frame(
-    est=median(m_pois_predicted[,1]),
-    se=median(m_pois_predicted[,2])
+m_pois_int_predicted <- data.frame(
+    est=ct(m_pois_int_predicted[,1]),
+    se=ct(m_pois_int_predicted[,2])
+  )
+
+m_pois_alt_simple_predicted <- unmarked::predict(
+        m_pois_alternative_model_simple, 
+        type="lambda"
+      )
+      
+m_pois_alt_simple_predicted <- data.frame(
+    est=ct(m_pois_alt_simple_predicted[,1]),
+    se=ct(m_pois_alt_simple_predicted[,2])
+  )
+
+m_pois_alt_complex_predicted <- unmarked::predict(
+        m_pois_alternative_model_complex, 
+        type="lambda"
+      )
+
+m_pois_alt_complex_predicted <- data.frame(
+    est=ct(m_pois_alt_complex_predicted[,1]),
+    se=ct(m_pois_alt_complex_predicted[,2])
   )
 
 m_negbin_intercept_model <- unmarked::gdistsamp(
@@ -121,8 +160,20 @@ m_negbin_intercept_model <- unmarked::gdistsamp(
     mixture="NB"
   )
 
-m_negbin_alternative_model <- unmarked::gdistsamp(
-    lambdaformula = ~poly(lat,2)+poly(lon,2)+offset(log(effort)),
+m_negbin_alternative_model_simple <- unmarked::gdistsamp(
+    lambdaformula = ~poly(lat,1)+poly(lon,1)+offset(log(effort)),
+    pformula = ~1,
+    phiformula = ~1,
+    data = umdf,
+    se = T,
+    keyfun = "halfnorm",
+    unitsOut = "kmsq",
+    output = "density",
+    mixture="NB"
+  )
+  
+m_negbin_alternative_model_complex <- unmarked::gdistsamp(
+    lambdaformula = ~poly(lat,4)+poly(lon,4)+offset(log(effort)),
     pformula = ~1,
     phiformula = ~1,
     data = umdf,
@@ -133,15 +184,72 @@ m_negbin_alternative_model <- unmarked::gdistsamp(
     mixture="NB"
   )
 
-m_negbin_predicted <- unmarked::predict(
-        m_negbin_alternative_model, 
+m_negbin_int_predicted <- unmarked::predict(
+        m_negbin_intercept_model, 
         type="lambda"
       )
     
-m_negbin_predicted <- data.frame(
-    est=median(m_negbin_predicted[,1]),
-    se=median(m_negbin_predicted[,2])
+m_negbin_int_predicted <- data.frame(
+    est=ct(m_negbin_int_predicted[,1]),
+    se=ct(m_negbin_int_predicted[,2])
   )
+
+m_negbin_alt_simple_predicted <- unmarked::predict(
+        m_negbin_alternative_model_simple, 
+        type="lambda"
+      )
+      
+m_negbin_alt_simple_predicted <- data.frame(
+    est=ct(m_negbin_alt_simple_predicted[,1]),
+    se=ct(m_negbin_alt_simple_predicted[,2])
+  )
+
+m_negbin_alt_complex_predicted <- unmarked::predict(
+        m_negbin_alternative_model_complex, 
+        type="lambda"
+      )
+
+m_negbin_alt_complex_predicted <- data.frame(
+    est=ct(m_negbin_alt_complex_predicted[,1]),
+    se=ct(m_negbin_alt_complex_predicted[,2])
+  )
+    
+
+# average our predictions across mixture and covariates using AIC
+
+densities <- c(
+    m_pois_int_predicted$est, 
+    m_pois_alt_simple_predicted$est,
+    m_pois_alt_complex_predicted$est,
+    m_negbin_int_predicted$est,
+    m_negbin_alt_simple_predicted$est,
+    m_negbin_alt_complex_predicted$est
+  )
+
+std_errors <- c(
+    m_pois_int_predicted$se, 
+    m_pois_alt_simple_predicted$se,
+    m_pois_alt_complex_predicted$se,
+    m_negbin_int_predicted$se,
+    m_negbin_alt_simple_predicted$se,
+    m_negbin_alt_complex_predicted$se
+  )
+
+
+weights <- OpenIMBCR:::akaike_weights(
+  aic_values=c(
+    m_pois_intercept_model@AIC, 
+    m_pois_alternative_model_simple@AIC, 
+    m_pois_alternative_model_complex@AIC,
+    m_negbin_intercept_model@AIC, 
+    m_negbin_alternative_model_simple@AIC, 
+    m_negbin_alternative_model_complex@AIC
+  ), 
+  precision=10
+)
+
+density_ensemble <- mean(densities)
+se_ensemble <- mean(std_errors)
 
 r_data_file <- tolower(paste(argv[1],
       "_imbcr_intecerpt_predictions_",
