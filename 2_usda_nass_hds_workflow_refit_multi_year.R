@@ -1,7 +1,15 @@
+# load a gdistsamp workflow for us to use for re-fitting our top models
+load(commandArgs(trailingOnly=T))
+
+# define our global constants
 AIC_RESCALE_CONST         <- 100000
 AIC_SUBSTANTIAL_THRESHOLD <- 8
 CORRELATION_THRESHOLD     <- 0.65
 AREA_OF_PLJV_KM           <- 646895.6
+
+#
+# Local Functions
+#
 
 backscale_var <- function(var=NULL, df=NULL, m_scale=NULL){
   return(
@@ -59,6 +67,10 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
     }
   }
 }
+
+#
+# MAIN
+#
 
 # for 2016
 top_model <- as.numeric(row.names(model_selection_table@Full[1,]))
@@ -130,7 +142,7 @@ if(unmarked_models[[top_model]]@mixture == "NB"){
   aic_2017 <- m@AIC
 }
 
-data.frame(
+print( data.frame(
     species=argv[2],
     dens_2016=density_2016,
     se_2016=se_2016,
@@ -138,4 +150,4 @@ data.frame(
     dens_2017=density_2017,
     se_2017=se_2017, 
     n_se_2017=round(AREA_OF_PLJV_KM*se_2017)
-  )
+  ) )
