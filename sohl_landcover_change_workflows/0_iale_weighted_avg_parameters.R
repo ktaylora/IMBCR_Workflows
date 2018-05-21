@@ -1,37 +1,109 @@
-est_betas_stderr <- function(model_selection_table=null, var=null){
+# calculate betas and standard errors of parameter estimates from 
+# an unmarked model selection table
+est_betas_stderr <- function(model_selection_table=null, var=null, parse_quadratics=T){
   betas <- colnames(model_selection_table@Full)
     betas <- betas[grepl(betas, pattern="^lambda")]
 
   stderrs <- colnames(model_selection_table@Full)
     stderrs <- stderrs[grepl(stderrs, pattern="^SElambda")]  
   
-  akaike_wt <- !is.na(
-      model_selection_table@Full[, betas[ grepl(betas, pattern=var)] ]
-    )
+  quad_pattern <- paste("lambda(poly(",var,", 2, raw = T)2)",sep="")
+   lin_pattern <- paste("lambda(poly(",var,", 2, raw = T)1)",sep="")
+   
+  # no quadratics for the focal variable?
+  if( sum(colnames(model_selection_table@Full) == quad_pattern) == 0 ){
+    akaike_wt <- !is.na(
+        model_selection_table@Full[, betas[ grepl(betas, pattern=var)] ]
+      )
+      
+    akaike_wt <- mean(
+        model_selection_table@Full[akaike_wt, 'AICwt' ],
+        na.rm=T
+      )
+      
+    cov_beta <- betas[grepl(betas, pattern=var)]
+    cov_beta <- weighted.mean(
+        model_selection_table@Full[,cov_beta], 
+        weights=model_selection_table@Full$AICwt, 
+        na.rm=T
+      )
+      
+    cov_se <- stderrs[grepl(stderrs, pattern=var)]
+    cov_se <- weighted.mean(
+        model_selection_table@Full[,cov_se], 
+        weights=model_selection_table@Full$AICwt, 
+        na.rm=T
+      )
     
-  akaike_wt <- mean(
-      model_selection_table@Full[akaike_wt, 'AICwt' ],
-      na.rm=T
+    ret <- as.data.frame(matrix(c(cov_beta, cov_se), ncol=2))
+      ret$wt <- akaike_wt
+    names(ret) <- c("beta", "se", "wt")
+    return(ret)
+  } else {
+    # row numbers for the corresponding "lambda" values for our linear
+    # pattern
+    keep <- which(
+        !is.na(model_selection_table@Full[,lin_pattern])
+      )
+    # calculate our linear parameter estimates first
+    lin_akaike_wt <- mean(
+        model_selection_table@Full$AICwt[keep]
+      )
+      
+    lin_cov_beta <- betas[betas == lin_pattern]
+    lin_cov_beta <- weighted.mean(
+        model_selection_table@Full[,lin_cov_beta], 
+        weights=model_selection_table@Full$AICwt[keep], 
+        na.rm=T
+      )
+      
+    lin_cov_se <- stderrs[ stderrs == gsub(lin_pattern, pattern="lambda", replacement="SElambda") ]
+    lin_cov_se <- weighted.mean(
+        model_selection_table@Full[,lin_cov_se], 
+        weights=model_selection_table@Full$AICwt[keep], 
+        na.rm=T
+      )
+    # calculate our quadratic parameter estimates
+    keep <- which(
+      !is.na(model_selection_table@Full[,quad_pattern])
     )
-    
-  cov_beta <- betas[grepl(betas, pattern=var)]
-  cov_beta <- weighted.mean(
-      model_selection_table@Full[,cov_beta], 
-      weights=model_selection_table@Full$AICwt, 
-      na.rm=T
+    # calculate our linear parameter estimates first
+    quad_akaike_wt <- mean(
+        model_selection_table@Full$AICwt[keep]
+      )
+      
+    quad_cov_beta <- betas[betas == quad_pattern]
+    quad_cov_beta <- weighted.mean(
+        model_selection_table@Full[,quad_cov_beta], 
+        weights=model_selection_table@Full$AICwt[keep], 
+        na.rm=T
+      )
+      
+    quad_cov_se <- stderrs[ stderrs == gsub(quad_pattern, pattern="lambda", replacement="SElambda") ]
+    quad_cov_se <- weighted.mean(
+        model_selection_table@Full[,quad_cov_se], 
+        weights=model_selection_table@Full$AICwt[keep], 
+        na.rm=T
+      )
+    # aggregate and return to user
+    ret <- data.frame(
+        order="linear", 
+        beta=lin_cov_beta, 
+        se=lin_cov_se, 
+        wt=lin_akaike_wt
+      )
+      
+    ret <- rbind(
+      ret,
+      data.frame(
+        order="quadratic", 
+        beta=quad_cov_beta, 
+        se=quad_cov_se, 
+        wt=quad_akaike_wt
+      )
     )
-    
-  cov_se <- stderrs[grepl(stderrs, pattern=var)]
-  cov_se <- weighted.mean(
-      model_selection_table@Full[,cov_se], 
-      weights=model_selection_table@Full$AICwt, 
-      na.rm=T
-    )
-  
-  ret <- as.data.frame(matrix(c(cov_beta, cov_se), ncol=2))
-    ret$wt <- akaike_wt
-  names(ret) <- paste(var,c("_beta", "_se", "_wt"),sep="")
-  return(ret)
+    return(ret)
+  }
 }
 #' hidden function that will accept a single unmarked model and a target 
 #' covariate and generate a range of predictions. Returns the x/y values
