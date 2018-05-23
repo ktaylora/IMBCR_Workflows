@@ -77,7 +77,10 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
 #' runs (with statistics)
 bs_calc_power <- function(
   replicates=N_BS_REPLICATES,
-  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv"
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv",
+  unmarked_models=NULL,
+  original_formulas=NULL,
+  top_model=NULL
 ){
   # read-in our IMBCR transect data
   s <- OpenIMBCR:::scrub_imbcr_df(
@@ -87,7 +90,10 @@ bs_calc_power <- function(
   # calculate our detections and sampling effort
   detections <- OpenIMBCR:::calc_dist_bins(s)
   effort     <- as.vector(OpenIMBCR:::calc_transect_effort(s))
-
+  # which formula are we going to test?
+  formula <- original_formulas[top_model]
+  print(formula)
+  # re-build our training data frame
   s <- calc_transect_summary_detections(
       s=s,
       name=toupper(argv[2]),
@@ -139,7 +145,7 @@ bs_calc_power <- function(
         mixture=unmarked_models[[top_model]]@mixture
       )
       m_downsampled <- fit_gdistsamp(
-          formula,
+          lambda=formula,
           umdf=umdf_downsampled,
           mixture=unmarked_models[[top_model]]@mixture
       )
@@ -175,7 +181,60 @@ bs_calc_power <- function(
   return(replicates)
 }
 
-# for 2016
+# for 2016 (loss of power from current dataset)
+
+DOWNSAMPLING_THRESHOLD <- 0.3
+p_30_perc_reduction_2016 <- bs_calc_power(
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv",
+  unmarked_model=unmarked_models,
+  original_formulas=original_formulas,
+  top_model=as.numeric(row.names(model_selection_table@Full[1,]))
+)
+
+DOWNSAMPLING_THRESHOLD <- 0.2
+p_20_perc_reduction_2016 <- bs_calc_power(
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv",
+  unmarked_model=unmarked_models,
+  original_formulas=original_formulas,
+  top_model=as.numeric(row.names(model_selection_table@Full[1,]))
+)
+
+DOWNSAMPLING_THRESHOLD <- 0.1
+p_10_perc_reduction_2016 <- bs_calc_power(
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv",
+  unmarked_model=unmarked_models,
+  original_formulas=original_formulas,
+  top_model=as.numeric(row.names(model_selection_table@Full[1,]))
+)
+
+# for 2017 (loss of power from current dataset)
+
+DOWNSAMPLING_THRESHOLD <- 0.3
+p_30_perc_reduction_2017 <- bs_calc_power(
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv"
+  unmarked_model=unmarked_models,
+  top_model=as.numeric(row.names(model_selection_table@Full[1,]))
+)
+
+DOWNSAMPLING_THRESHOLD <- 0.2
+p_20_perc_reduction_2017 <- bs_calc_power(
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv"
+  unmarked_model=unmarked_models,
+  top_model=as.numeric(row.names(model_selection_table@Full[1,]))
+)
+
+DOWNSAMPLING_THRESHOLD <- 0.1
+p_10_perc_reduction_2017 <- bs_calc_power(
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv"
+  unmarked_model=unmarked_models,
+  to
+
+# Alternative : for 2016, what's the sample-size needed to capture a significant effect
+# for an important variable?
+
+# Alternative : for 2016, what's the sample-size needed to capture a significant effect
+# for a marginally important variable?
+
 n_detections_in_alternative_sample <- round(mean(sapply(
   X=1:N_BS_REPLICATES,
   FUN=function(x){
