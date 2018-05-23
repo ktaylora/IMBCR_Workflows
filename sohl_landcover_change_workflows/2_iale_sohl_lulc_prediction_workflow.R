@@ -1,5 +1,6 @@
 require(raster)
 require(rgdal)
+require(ggplot2)
 
 load(commandArgs(trailingOnly=T))
 

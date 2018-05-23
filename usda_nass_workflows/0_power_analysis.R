@@ -92,7 +92,6 @@ bs_calc_power <- function(
   effort     <- as.vector(OpenIMBCR:::calc_transect_effort(s))
   # which formula are we going to test?
   formula <- original_formulas[top_model]
-  print(formula)
   # re-build our training data frame
   s <- calc_transect_summary_detections(
       s=s,
@@ -109,16 +108,29 @@ bs_calc_power <- function(
     cl,
     varlist=c(
       "s","detections","vars","unmarked_models",
-      "top_model","fit_gdistsamp","DOWNSAMPLING_THRESHOLD",
+      "top_model","fit_gdistsamp",
       "formula"
     ),
     envir=environment()
+  )
+  parallel::clusterExport(
+    cl,
+    varlist=c("DOWNSAMPLING_THRESHOLD"),
+    envir=globalenv()
   )
   replicates <- do.call(rbind, parallel::parLapply(
     cl=cl,
     X=1:replicates,
     fun=function(x){
       require(unmarked)
+      return_table <- data.frame(
+        density=NA,
+        density_downsampled=NA,
+        se=NA,
+        se_downsampled=NA,
+        aic=NA,
+        aic_downsampled=NA
+      )
       # determine rows to keep that satisfy our DOWNSAMPLING_THRESHOLD
       sample <- sample(1:nrow(s@data), size=nrow(s@data)*(1-DOWNSAMPLING_THRESHOLD))
       # randomly downsample our unmarked data.frame to the specified density
@@ -138,44 +150,39 @@ bs_calc_power <- function(
         survey="point",
         unitsIn="m"
       )
-      # re-fit our top model using our downsampled dataset
-      m <- fit_gdistsamp(
+      # re-fit our top model using our regular and our downsampled dataset
+      try(m <- fit_gdistsamp(
         lambda=formula,
         umdf=umdf,
         mixture=unmarked_models[[top_model]]@mixture
-      )
-      m_downsampled <- fit_gdistsamp(
+      ))
+      if(class(m) == "try-error") return(return_table)
+      try(m_downsampled <- fit_gdistsamp(
           lambda=formula,
           umdf=umdf_downsampled,
           mixture=unmarked_models[[top_model]]@mixture
-      )
-      # calculate density and standard error
+      ))
+      if(class(m_downsampled) == "try-error") return(return_table)
+      # calculate density and standard error for our regular dataset
       density <- se <-
         unmarked::predict(
           m,
           type="lambda"
       )[,1:2]
-      density <- mean(density[,1])
-      se <-  mean(se[,2])
-      aic <- m@AIC
+      return_table$density <- mean(density[,1])
+      return_table$se <-  mean(se[,2])
+      return_table$aic <- m@AIC
       # now for our downsampled dataset
       density_downsampled <- se_downsampled <-
         unmarked::predict(
           m_downsampled,
           type="lambda"
       )[,1:2]
-      density_downsampled <- mean(density_downsampled[,1])
-      se_downsampled <-  mean(se_downsampled[,2])
-      aic_downsampled <- m_downsampled@AIC
-
-      return(data.frame(
-        density=density,
-        density_downsampled=density_downsampled,
-        se=se,
-        se_downsampled=se_downsampled,
-        aic=aic,
-        aic_downsampled=aic_downsampled
-      ))
+      return_table$density_downsampled <- mean(density_downsampled[,1])
+      return_table$se_downsampled <-  mean(se_downsampled[,2])
+      return_table$aic_downsampled <- m_downsampled@AIC
+      # return to user
+      return(return_table)
     }
   ));
   return(replicates)
