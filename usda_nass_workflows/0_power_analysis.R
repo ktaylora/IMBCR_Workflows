@@ -72,6 +72,10 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
     }
   }
 }
+#' a re-worked
+downsample_stratified <- function(x=NULL, size=NULL, strata=NULL){
+
+}
 #' randomly downsample a dataset N=replicates times and calculate the density
 #' and standard error for each run. Will return the full table of all replicate
 #' runs (with statistics)
@@ -80,7 +84,8 @@ bs_calc_power <- function(
   s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv",
   unmarked_models=NULL,
   original_formulas=NULL,
-  top_model=NULL
+  top_model=NULL,
+  downsample_fun=sample
 ){
   # read-in our IMBCR transect data
   s <- OpenIMBCR:::scrub_imbcr_df(
@@ -118,77 +123,96 @@ bs_calc_power <- function(
     varlist=c("DOWNSAMPLING_THRESHOLD"),
     envir=globalenv()
   )
-  replicates <- do.call(rbind, parallel::parLapply(
-    cl=cl,
-    X=1:replicates,
-    fun=function(x){
-      require(unmarked)
-      return_table <- data.frame(
-        density=NA,
-        density_downsampled=NA,
-        se=NA,
-        se_downsampled=NA,
-        aic=NA,
-        aic_downsampled=NA
-      )
-      # determine rows to keep that satisfy our DOWNSAMPLING_THRESHOLD
-      sample <- sample(1:nrow(s@data), size=nrow(s@data)*(1-DOWNSAMPLING_THRESHOLD))
-      # randomly downsample our unmarked data.frame to the specified density
-      umdf <- unmarked::unmarkedFrameGDS(
-        y=as.matrix(detections$y),
-        siteCovs=s@data[,c(vars,'effort')],
-        dist.breaks=detections$breaks,
-        numPrimary=1,
-        survey="point",
-        unitsIn="m"
-      )
-      umdf_downsampled <- unmarked::unmarkedFrameGDS(
-        y=as.matrix(detections$y)[sample,],
-        siteCovs=s@data[sample,c(vars,'effort')],
-        dist.breaks=detections$breaks,
-        numPrimary=1,
-        survey="point",
-        unitsIn="m"
-      )
-      # re-fit our top model using our regular and our downsampled dataset
-      try(m <- fit_gdistsamp(
-        lambda=formula,
-        umdf=umdf,
-        mixture=unmarked_models[[top_model]]@mixture
-      ))
-      if(class(m) == "try-error") return(return_table)
-      try(m_downsampled <- fit_gdistsamp(
+  # parallelize an IMBCR model re-fit operation across N=replicates bootstrap
+  # replications -- return a table for each replicate that we will then
+  # merge and return to the user
+  replicates <- do.call(
+    rbind, 
+    parallel::parLapply(
+      cl=cl,
+      X=1:replicates,
+      fun=function(x){
+        require(unmarked)
+        # pre-allocate a table so that we can return at-least an NA value
+        # if a run fails
+        return_table <- data.frame(
+          density=NA,
+          density_downsampled=NA,
+          se=NA,
+          se_downsampled=NA,
+          aic=NA,
+          aic_downsampled=NA
+        )
+        # determine rows to keep that satisfy our DOWNSAMPLING_THRESHOLD
+        sample <- downsample_fun(
+            1:nrow(s@data), 
+            size=nrow(s@data)*(1-DOWNSAMPLING_THRESHOLD)
+          )
+        # randomly downsample our unmarked data.frame to the specified density
+        umdf <- unmarked::unmarkedFrameGDS(
+          y=as.matrix(detections$y),
+          siteCovs=s@data[,c(vars,'effort')],
+          dist.breaks=detections$breaks,
+          numPrimary=1,
+          survey="point",
+          unitsIn="m"
+        )
+        umdf_downsampled <- unmarked::unmarkedFrameGDS(
+          y=as.matrix(detections$y)[sample,],
+          siteCovs=s@data[sample,c(vars,'effort')],
+          dist.breaks=detections$breaks,
+          numPrimary=1,
+          survey="point",
+          unitsIn="m"
+        )
+        # re-fit our top model using our regular and our downsampled dataset
+        # use some fairly-robust exception handling here to capture when 
+        # we completely fail to re-fit a model -- this information is useful
+        # to us for our power analysis
+        try(m <- fit_gdistsamp(
           lambda=formula,
-          umdf=umdf_downsampled,
+          umdf=umdf,
           mixture=unmarked_models[[top_model]]@mixture
-      ))
-      if(class(m_downsampled) == "try-error") return(return_table)
-      # calculate density and standard error for our regular dataset
-      density <- se <-
-        unmarked::predict(
-          m,
-          type="lambda"
-      )[,1:2]
-      return_table$density <- mean(density[,1])
-      return_table$se <-  mean(se[,2])
-      return_table$aic <- m@AIC
-      # now for our downsampled dataset
-      density_downsampled <- se_downsampled <-
-        unmarked::predict(
-          m_downsampled,
-          type="lambda"
-      )[,1:2]
-      return_table$density_downsampled <- mean(density_downsampled[,1])
-      return_table$se_downsampled <-  mean(se_downsampled[,2])
-      return_table$aic_downsampled <- m_downsampled@AIC
-      # return to user
-      return(return_table)
-    }
-  ));
+        ))
+        if(class(m) %in% c("try-error","logical")){ 
+          return(return_table)
+        }
+        try(m_downsampled <- fit_gdistsamp(
+            lambda=formula,
+            umdf=umdf_downsampled,
+            mixture=unmarked_models[[top_model]]@mixture
+        ))
+        if(class(m_downsampled) %in% c("try-error","logical")) { 
+          return(return_table)
+        }
+        # calculate density and standard error for our regular dataset
+        density <- se <-
+          unmarked::predict(
+            m,
+            type="lambda"
+        )[,1:2]
+        return_table$density <- mean(density[,1])
+        return_table$se <-  mean(se[,2])
+        return_table$aic <- m@AIC
+        # now for our downsampled dataset
+        density_downsampled <- se_downsampled <-
+          unmarked::predict(
+            m_downsampled,
+            type="lambda"
+        )[,1:2]
+        return_table$density_downsampled <- mean(density_downsampled[,1])
+        return_table$se_downsampled <-  mean(se_downsampled[,2])
+        return_table$aic_downsampled <- m_downsampled@AIC
+        # return to user
+        return(return_table)
+      }
+    )
+  )
   return(replicates)
 }
 
-# for 2016 (loss of power from current dataset)
+# for 2016, determine the loss of power from current stratification if we
+# downsample by certain thresholds
 
 DOWNSAMPLING_THRESHOLD <- 0.3
 p_30_perc_reduction_2016 <- bs_calc_power(
