@@ -72,9 +72,10 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
     }
   }
 }
-#' a re-worked
+#' a re-worked local implementation of the sample() function that can
+#' accomodate AB's vision for minimum sampling density per IMBCR transect
 downsample_stratified <- function(x=NULL, size=NULL, strata=NULL){
-
+  
 }
 #' randomly downsample a dataset N=replicates times and calculate the density
 #' and standard error for each run. Will return the full table of all replicate
@@ -98,10 +99,10 @@ bs_calc_power <- function(
   # which formula are we going to test?
   formula <- original_formulas[top_model]
   # re-build our training data frame
-  s <- calc_transect_summary_detections(
+  s <- OpenIMBCR:::calc_route_centroids(
       s=s,
-      name=toupper(argv[2]),
-      field='est_abund'
+      four_letter_code=toupper(argv[2]),
+      use='est_abund'
     )
   # join with our habitat covariates
   s <- OpenIMBCR:::spatial_join(s, units)
