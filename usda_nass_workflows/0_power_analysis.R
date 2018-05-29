@@ -1,3 +1,8 @@
+# Title     : TODO
+# Objective : TODO
+# Created by: ktaylora
+# Created on: 5/23/18
+
 # load a previously built gdistsamp workflow for us to use for re-fitting our top models
 # and then do a power analysis using bootstrapping to assess the potential
 # influence of downsampling
@@ -5,24 +10,12 @@
 load(commandArgs(trailingOnly=T))
 
 # define our global constants
-AIC_RESCALE_CONST         <- 100000
-AIC_SUBSTANTIAL_THRESHOLD <- 8
-CORRELATION_THRESHOLD     <- 0.65
-AREA_OF_PLJV_KM           <- 646895.6
 DOWNSAMPLING_THRESHOLD    <- 0.3
 N_BS_REPLICATES           <- 999
 
 #
 # Local Functions
 #
-
-backscale_var <- function(var=NULL, df=NULL, m_scale=NULL){
-  return(
-      df[, var] *
-      attr(m_scale, 'scaled:scale')[var] +
-      attr(m_scale, 'scaled:center')[var]
-    )
-}
 
 fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
   if(length(lambdas)>1){
@@ -74,8 +67,73 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
 }
 #' a re-worked local implementation of the sample() function that can
 #' accomodate AB's vision for minimum sampling density per IMBCR transect
-downsample_stratified <- function(x=NULL, size=NULL, strata=NULL){
-  
+downsample_stratified <- function(x=NULL, size=NULL, strata=NULL, return_rows=T){
+  MAX_SEARCH_ITER = 100
+  if(is.null(x)) stop("x= argument not specified")
+  if(is.null(size)) stop("size= argument not specified")
+  # if the user didn't specify strata, try and figure them out from
+  # the transect strings specified by x=
+  if(is.null(strata)){
+    state_bcr <- sapply(
+      strsplit(as.character(x), split="-"),
+      FUN=function(x) paste(x[1],x[2],sep="-")
+    )
+    statum_code_minus_letter <- gsub(
+      sapply(
+        strsplit(as.character(x), split="-"),
+        FUN=function(x) x[3]
+      ),
+      pattern="[0-9]",
+      replacement=""
+    )
+    # merge the state-bcr and stratum strings
+    strata <- paste(state_bcr, statum_code_minus_letter,sep="-")
+  }
+  # make a pivot table of our strata and figure out how many we have to part with from
+  sample_counts <- sample(table(strata))
+  # sanity-check -- do we have enough transects in the original dataset
+  # to cover the size requested by the user?
+  if(sum(sample_counts) < size) stop("size= argument is too large to attempt a stratification")
+  full_imbcr_dataset <- data.frame(transect=x, strata=strata)
+  rows_to_keep <- vector() # will contain rows from the full dataset we are going to retain
+  i <- 1
+  while(length(rows_to_keep) < size && i < MAX_SEARCH_ITER) {
+    for(j in 1:length(strata)){
+      # do we have at least two transects in this stratum?
+      if(sample_counts[j]>2){
+         strata_count <- sample(2:sample_counts[j], size=1) # how many transects are we going to keep from this stratum?
+         rows <- which(
+           grepl(
+             full_imbcr_dataset$transect,
+             pattern=names(sample_counts[j])
+           )
+         )
+         rows_to_keep <- append(rows_to_keep, sample(rows, size=strata_count))
+      }
+      # if not, then keep these transects in our final sample
+      else {
+         rows <- which(
+           grepl(
+             full_imbcr_dataset$transect,
+             pattern=names(sample_counts[j])
+           )
+         )
+         rows_to_keep <- append(rows_to_keep, rows)
+      }
+      # sanity-check : do we satisfy our n rows requirement?
+      if(length(rows_to_keep)>=size) break
+    }
+    # sanity-check : break out of an endless-loop
+    i <- i+1;
+    if(i == MAX_SEARCH_ITER) stop("failed to find a sample that satisfies size= argument -- this shouldn't happen")
+  }
+  if(return_rows){
+    return(rows_to_keep)
+  } else {
+    full_imbcr_dataset$keep <- FALSE;
+    full_imbcr_dataset$keep[rows_to_keep] <- TRUE;
+    return(full_imbcr_dataset)
+  }
 }
 #' randomly downsample a dataset N=replicates times and calculate the density
 #' and standard error for each run. Will return the full table of all replicate
@@ -128,7 +186,7 @@ bs_calc_power <- function(
   # replications -- return a table for each replicate that we will then
   # merge and return to the user
   replicates <- do.call(
-    rbind, 
+    rbind,
     parallel::parLapply(
       cl=cl,
       X=1:replicates,
@@ -146,7 +204,7 @@ bs_calc_power <- function(
         )
         # determine rows to keep that satisfy our DOWNSAMPLING_THRESHOLD
         sample <- downsample_fun(
-            1:nrow(s@data), 
+            1:nrow(s@data),
             size=nrow(s@data)*(1-DOWNSAMPLING_THRESHOLD)
           )
         # randomly downsample our unmarked data.frame to the specified density
@@ -167,7 +225,7 @@ bs_calc_power <- function(
           unitsIn="m"
         )
         # re-fit our top model using our regular and our downsampled dataset
-        # use some fairly-robust exception handling here to capture when 
+        # use some fairly-robust exception handling here to capture when
         # we completely fail to re-fit a model -- this information is useful
         # to us for our power analysis
         try(m <- fit_gdistsamp(
@@ -175,7 +233,7 @@ bs_calc_power <- function(
           umdf=umdf,
           mixture=unmarked_models[[top_model]]@mixture
         ))
-        if(class(m) %in% c("try-error","logical")){ 
+        if(class(m) %in% c("try-error","logical")){
           return(return_table)
         }
         try(m_downsampled <- fit_gdistsamp(
@@ -183,7 +241,7 @@ bs_calc_power <- function(
             umdf=umdf_downsampled,
             mixture=unmarked_models[[top_model]]@mixture
         ))
-        if(class(m_downsampled) %in% c("try-error","logical")) { 
+        if(class(m_downsampled) %in% c("try-error","logical")) {
           return(return_table)
         }
         # calculate density and standard error for our regular dataset
@@ -243,7 +301,7 @@ p_10_perc_reduction_2016 <- bs_calc_power(
 
 DOWNSAMPLING_THRESHOLD <- 0.3
 p_30_perc_reduction_2017 <- bs_calc_power(
-  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv"
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv",
   unmarked_model=unmarked_models,
   top_model=as.numeric(row.names(model_selection_table@Full[1,]))
 )
@@ -277,4 +335,9 @@ n_detections_in_alternative_sample <- round(mean(sapply(
   }
 )))
 
-# for 2017
+save(
+  ls(pattern="^p_"),
+  file="/home/ktaylora/power_analysis_run_results.rdata",
+  compress=T)
+
+
