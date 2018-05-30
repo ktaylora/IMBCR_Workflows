@@ -99,7 +99,7 @@ downsample_stratified <- function(x=NULL, size=NULL, strata=NULL, return_rows=T)
   rows_to_keep <- vector() # will contain rows from the full dataset we are going to retain
   i <- 1
   while(length(rows_to_keep) < size && i < MAX_SEARCH_ITER) {
-    for(j in 1:length(strata)){
+    for(j in 1:length(unique(strata))){
       # do we have at least two transects in this stratum?
       if(sample_counts[j]>MIN_STRATUM_TRANSECTS){
          strata_count <- sample(MIN_STRATUM_TRANSECTS:sample_counts[j], size=1) # how many transects are we going to keep from this stratum?
@@ -109,7 +109,7 @@ downsample_stratified <- function(x=NULL, size=NULL, strata=NULL, return_rows=T)
              pattern=names(sample_counts[j])
            )
          )
-         rows_to_keep <- append(rows_to_keep, sample(rows, size=strata_count))
+         rows_to_keep <- unique(append(rows_to_keep, sample(rows, size=strata_count)))
       }
       # if not, then keep these transects in our final sample
       else {
@@ -119,7 +119,7 @@ downsample_stratified <- function(x=NULL, size=NULL, strata=NULL, return_rows=T)
              pattern=names(sample_counts[j])
            )
          )
-         rows_to_keep <- append(rows_to_keep, rows)
+         rows_to_keep <- unique(append(rows_to_keep, rows))
       }
       # sanity-check : do we satisfy our n rows requirement?
       if(length(rows_to_keep)>=size) break
@@ -204,10 +204,18 @@ bs_calc_power <- function(
           aic_downsampled=NA
         )
         # determine rows to keep that satisfy our DOWNSAMPLING_THRESHOLD
-        sample <- downsample_fun(
-            1:nrow(s@data),
+        if(identical(downsample_fun, sample)){
+          sample <- downsample_fun(
+              1:nrow(s@data),
+              size=nrow(s@data)*(1-DOWNSAMPLING_THRESHOLD)
+            )
+        # assume we are using the min stratification strategy
+        } else {
+          sample <- downsample_fun(
+            x=s$transect,
             size=nrow(s@data)*(1-DOWNSAMPLING_THRESHOLD)
           )
+        }
         # randomly downsample our unmarked data.frame to the specified density
         umdf <- unmarked::unmarkedFrameGDS(
           y=as.matrix(detections$y),
@@ -345,7 +353,11 @@ n_detections_in_alternative_sample <- round(mean(sapply(
 
 save(
   ls(pattern="^p_"),
-  file="/home/ktaylora/power_analysis_run_results.rdata",
-  compress=T)
-
-
+  file=paste(
+    "/home/ktaylora/",
+    tolower(argv[2]),
+    "_power_analysis_run_results.rdata",
+    , sep=""
+  ),
+  compress=T
+)
