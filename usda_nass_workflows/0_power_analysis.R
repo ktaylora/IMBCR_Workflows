@@ -69,6 +69,7 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
 #' accomodate AB's vision for minimum sampling density per IMBCR transect
 downsample_stratified <- function(x=NULL, size=NULL, strata=NULL, return_rows=T){
   MAX_SEARCH_ITER = 100
+  MIN_STRATUM_TRANSECTS = 2
   if(is.null(x)) stop("x= argument not specified")
   if(is.null(size)) stop("size= argument not specified")
   # if the user didn't specify strata, try and figure them out from
@@ -100,8 +101,8 @@ downsample_stratified <- function(x=NULL, size=NULL, strata=NULL, return_rows=T)
   while(length(rows_to_keep) < size && i < MAX_SEARCH_ITER) {
     for(j in 1:length(strata)){
       # do we have at least two transects in this stratum?
-      if(sample_counts[j]>2){
-         strata_count <- sample(2:sample_counts[j], size=1) # how many transects are we going to keep from this stratum?
+      if(sample_counts[j]>MIN_STRATUM_TRANSECTS){
+         strata_count <- sample(MIN_STRATUM_TRANSECTS:sample_counts[j], size=1) # how many transects are we going to keep from this stratum?
          rows <- which(
            grepl(
              full_imbcr_dataset$transect,
@@ -172,7 +173,7 @@ bs_calc_power <- function(
     cl,
     varlist=c(
       "s","detections","vars","unmarked_models",
-      "top_model","fit_gdistsamp",
+      "top_model","fit_gdistsamp", "downsample_fun",
       "formula"
     ),
     envir=environment()
@@ -278,6 +279,7 @@ p_30_perc_reduction_2016 <- bs_calc_power(
   s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv",
   unmarked_model=unmarked_models,
   original_formulas=original_formulas,
+  downsample_fun=downsample_stratified,
   top_model=as.numeric(row.names(model_selection_table@Full[1,]))
 )
 
@@ -286,6 +288,7 @@ p_20_perc_reduction_2016 <- bs_calc_power(
   s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv",
   unmarked_model=unmarked_models,
   original_formulas=original_formulas,
+  downsample_fun=downsample_stratified,
   top_model=as.numeric(row.names(model_selection_table@Full[1,]))
 )
 
@@ -294,6 +297,7 @@ p_10_perc_reduction_2016 <- bs_calc_power(
   s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv",
   unmarked_model=unmarked_models,
   original_formulas=original_formulas,
+  downsample_fun=downsample_stratified,
   top_model=as.numeric(row.names(model_selection_table@Full[1,]))
 )
 
@@ -303,6 +307,7 @@ DOWNSAMPLING_THRESHOLD <- 0.3
 p_30_perc_reduction_2017 <- bs_calc_power(
   s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv",
   unmarked_model=unmarked_models,
+  downsample_fun=downsample_stratified,
   top_model=as.numeric(row.names(model_selection_table@Full[1,]))
 )
 
@@ -310,6 +315,7 @@ DOWNSAMPLING_THRESHOLD <- 0.2
 p_20_perc_reduction_2017 <- bs_calc_power(
   s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv"
   unmarked_model=unmarked_models,
+  downsample_fun=downsample_stratified,
   top_model=as.numeric(row.names(model_selection_table@Full[1,]))
 )
 
@@ -317,12 +323,14 @@ DOWNSAMPLING_THRESHOLD <- 0.1
 p_10_perc_reduction_2017 <- bs_calc_power(
   s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv"
   unmarked_model=unmarked_models,
-  to
+  downsample_fun=downsample_stratified,
+  top_model=as.numeric(row.names(model_selection_table@Full[1,]))
+)
 
 # Alternative : for 2016, what's the sample-size needed to capture a significant effect
 # for an important variable?
 
-# Alternative : for 2016, what's the sample-size needed to capture a significant effect
+# Alternative : for 2017, what's the sample-size needed to capture a significant effect
 # for a marginally important variable?
 
 n_detections_in_alternative_sample <- round(mean(sapply(
