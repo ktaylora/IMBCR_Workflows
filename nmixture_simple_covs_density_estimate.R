@@ -44,6 +44,11 @@ calc_emp_dispersion_statistic <- function(x = NULL, bs=999999){
   return(round(observed/predicted, 2))
 }
 
+akaike_weights <- function (aic_values = NULL, precision = 5){
+  weights <- exp(-0.5 * (aic_values - min(aic_values, na.rm=T)))
+  return(round(weights/sum(weights, na.rm=T), precision))
+}
+
 #
 # MAIN
 #
@@ -269,6 +274,8 @@ weights <- OpenIMBCR:::akaike_weights(
   ), 
   precision=10
 )
+
+weights <- akaike_weights(weights$aic_values)
 
 density_ensemble <- weighted.mean(densities, weights=weights, na.rm=T)
 se_ensemble <- weighted.mean(std_errors, weights=weights, na.rm=T)
