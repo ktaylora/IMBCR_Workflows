@@ -1,11 +1,6 @@
 #
 # This is not pretty -- I'm sorry; Kyle (2018)
 #
-# Accepts a single argument at run-time: the full path to an
-# RData file produced from a glm workflow. This has all of the
-# transect-level covariate data and detections pre-defined and
-# cut's a few hundred lines of code.
-#
 # This workflow will produce a negative-binomial HDS model from
 # unmarked (gdistsamp), do model averaging, and make a shapefile
 # of predictions.
@@ -82,7 +77,10 @@ umdf <- unmarked::unmarkedFrameGDS(
   unitsIn="m"
 )
 
-m_pois_intercept_model <- unmarked::gdistsamp(
+#
+# first, fit for the standard poisson mixture distribution
+#
+m_pois_intercept_model <- try(unmarked::gdistsamp(
     lambdaformula = ~1+offset(log(effort)),
     pformula = ~1,
     phiformula = ~1,
@@ -92,9 +90,9 @@ m_pois_intercept_model <- unmarked::gdistsamp(
     unitsOut = "kmsq",
     output = "density",
     mixture="P"
-  )
+  ))
 
-m_pois_alternative_model_simple <- unmarked::gdistsamp(
+m_pois_alternative_model_simple <- try(unmarked::gdistsamp(
     lambdaformula = ~poly(lat,1)+poly(lon,1)+offset(log(effort)),
     pformula = ~1,
     phiformula = ~1,
@@ -104,9 +102,9 @@ m_pois_alternative_model_simple <- unmarked::gdistsamp(
     unitsOut = "kmsq",
     output = "density",
     mixture="P"
-  )
+  ))
 
-m_pois_alternative_model_complex <- unmarked::gdistsamp(
+m_pois_alternative_model_complex <- try(unmarked::gdistsamp(
     lambdaformula = ~poly(lat,4)+poly(lon,4)+offset(log(effort)),
     pformula = ~1,
     phiformula = ~1,
@@ -116,37 +114,52 @@ m_pois_alternative_model_complex <- unmarked::gdistsamp(
     unitsOut = "kmsq",
     output = "density",
     mixture="P"
-  )
+  ))
 
-m_pois_int_predicted <- unmarked::predict(
-        m_pois_intercept_model, 
-        type="lambda"
-      )
-    
-m_pois_int_predicted <- data.frame(
+if(class(m_pois_intercept_model) != "try-error"){
+  m_pois_int_predicted <- unmarked::predict(
+    m_pois_intercept_model, 
+    type="lambda"
+  )
+  m_pois_int_predicted <- data.frame(
     est=ct(m_pois_int_predicted[,1]),
     se=ct(m_pois_int_predicted[,2])
   )
+} else {
+  m_pois_int_predicted <- data.frame(est=NA, se=NA)
+}
 
-m_pois_alt_simple_predicted <- unmarked::predict(
-        m_pois_alternative_model_simple, 
-        type="lambda"
-      )
-      
-m_pois_alt_simple_predicted <- data.frame(
+if(class(m_pois_alternative_model_simple) != "try-error"){
+  m_pois_alt_simple_predicted <- unmarked::predict(
+    m_pois_alternative_model_simple, 
+    type="lambda"
+  )
+  m_pois_alt_simple_predicted <- data.frame(
     est=ct(m_pois_alt_simple_predicted[,1]),
     se=ct(m_pois_alt_simple_predicted[,2])
   )
+} else {
+  m_pois_alt_simple_predicted <- data.frame(est=NA, se=NA)
+}
 
-m_pois_alt_complex_predicted <- unmarked::predict(
-        m_pois_alternative_model_complex, 
-        type="lambda"
-      )
 
-m_pois_alt_complex_predicted <- data.frame(
+if(class(m_pois_alternative_model_complex) != "try-error"){
+  m_pois_alt_complex_predicted <- unmarked::predict(
+    m_pois_alternative_model_complex, 
+    type="lambda"
+  )
+  m_pois_alt_complex_predicted <- data.frame(
     est=ct(m_pois_alt_complex_predicted[,1]),
     se=ct(m_pois_alt_complex_predicted[,2])
   )
+} else {
+  m_pois_alt_complex_predicted <- data.frame(est=NA, se=NA)
+}
+
+
+#
+# Now fit for the negative binomial mixture distribution
+#
 
 m_negbin_intercept_model <- unmarked::gdistsamp(
     lambdaformula = ~1+offset(log(effort)),
@@ -184,36 +197,45 @@ m_negbin_alternative_model_complex <- unmarked::gdistsamp(
     mixture="NB"
   )
 
-m_negbin_int_predicted <- unmarked::predict(
-        m_negbin_intercept_model, 
-        type="lambda"
-      )
-    
-m_negbin_int_predicted <- data.frame(
+
+if(class(m_negbin_intercept_model) != "try-error"){
+  m_negbin_int_predicted <- unmarked::predict(
+    m_negbin_intercept_model, 
+    type="lambda"
+  )  
+  m_negbin_int_predicted <- data.frame(
     est=ct(m_negbin_int_predicted[,1]),
     se=ct(m_negbin_int_predicted[,2])
   )
+} else {
+  m_negbin_int_predicted <- data.frame(est=NA, se=NA)
+}
 
-m_negbin_alt_simple_predicted <- unmarked::predict(
-        m_negbin_alternative_model_simple, 
-        type="lambda"
-      )
-      
-m_negbin_alt_simple_predicted <- data.frame(
+if(class(m_negbin_alternative_model_simple) != "try-error"){
+  m_negbin_alt_simple_predicted <- unmarked::predict(
+    m_negbin_alternative_model_simple, 
+    type="lambda"
+  )
+  m_negbin_alt_simple_predicted <- data.frame(
     est=ct(m_negbin_alt_simple_predicted[,1]),
     se=ct(m_negbin_alt_simple_predicted[,2])
   )
+} else {
+  m_negbin_alt_simple_predicted <- data.frame(est=NA, se=NA)
+}
 
-m_negbin_alt_complex_predicted <- unmarked::predict(
-        m_negbin_alternative_model_complex, 
-        type="lambda"
-      )
-
-m_negbin_alt_complex_predicted <- data.frame(
+if(class(m_negbin_alternative_model_simple) != "try-error"){
+  m_negbin_alt_complex_predicted <- unmarked::predict(
+    m_negbin_alternative_model_complex, 
+    type="lambda"
+  )
+  m_negbin_alt_complex_predicted <- data.frame(
     est=ct(m_negbin_alt_complex_predicted[,1]),
     se=ct(m_negbin_alt_complex_predicted[,2])
   )
-    
+} else {
+  m_negbin_alt_complex_predicted <- data.frame(est=NA, se=NA)
+}  
 
 # average our predictions across mixture and covariates using AIC
 
@@ -238,18 +260,18 @@ std_errors <- c(
 
 weights <- OpenIMBCR:::akaike_weights(
   aic_values=c(
-    m_pois_intercept_model@AIC, 
-    m_pois_alternative_model_simple@AIC, 
-    m_pois_alternative_model_complex@AIC,
-    m_negbin_intercept_model@AIC, 
-    m_negbin_alternative_model_simple@AIC, 
-    m_negbin_alternative_model_complex@AIC
+    ifelse(class(m_pois_intercept_model) == "try-error", 0, m_pois_intercept_model@AIC),
+    ifelse(class(m_pois_alternative_model_simple) == "try-error", 0, m_pois_alternative_model_simple@AIC), 
+    ifelse(class(m_pois_alternative_model_complex) == "try-error", 0, m_pois_alternative_model_complex@AIC), 
+    ifelse(class(m_negbin_intercept_model) == "try-error", 0, m_negbin_intercept_model@AIC), 
+    ifelse(class(m_negbin_alternative_model_simple) == "try-error", 0, m_negbin_alternative_model_simple@AIC), 
+    ifelse(class(m_negbin_alternative_model_complex) == "try-error", 0, m_negbin_alternative_model_complex@AIC)
   ), 
   precision=10
 )
 
-density_ensemble <- mean(densities)
-se_ensemble <- mean(std_errors)
+density_ensemble <- weighted.mean(densities, weights=weights, na.rm=T)
+se_ensemble <- weighted.mean(std_errors, weights=weights, na.rm=T)
 
 r_data_file <- tolower(paste(argv[1],
       "_imbcr_intecerpt_predictions_",
