@@ -7,7 +7,7 @@
 # and then do a power analysis using bootstrapping to assess the potential
 # influence of downsampling
 
-#load(commandArgs(trailingOnly=T))
+load(commandArgs(trailingOnly=T))
 
 # define our global constants
 DOWNSAMPLING_THRESHOLD    <- 0.3
@@ -315,6 +315,7 @@ DOWNSAMPLING_THRESHOLD <- 0.3
 p_30_perc_reduction_2017 <- bs_calc_power(
   s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv",
   unmarked_model=unmarked_models,
+  original_formulas=original_formulas,
   downsample_fun=downsample_stratified,
   top_model=as.numeric(row.names(model_selection_table@Full[1,]))
 )
@@ -323,6 +324,7 @@ DOWNSAMPLING_THRESHOLD <- 0.2
 p_20_perc_reduction_2017 <- bs_calc_power(
   s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv",
   unmarked_model=unmarked_models,
+  original_formulas=original_formulas,
   downsample_fun=downsample_stratified,
   top_model=as.numeric(row.names(model_selection_table@Full[1,]))
 )
@@ -331,6 +333,7 @@ DOWNSAMPLING_THRESHOLD <- 0.1
 p_10_perc_reduction_2017 <- bs_calc_power(
   s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv",
   unmarked_model=unmarked_models,
+  original_formulas=original_formulas,
   downsample_fun=downsample_stratified,
   top_model=as.numeric(row.names(model_selection_table@Full[1,]))
 )
