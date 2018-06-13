@@ -522,14 +522,14 @@ sath_2016 <- calc_power_of_cov(
   units=units
 )
 
-sath_2017 <- calc_power_of_cov(
-  four_letter_code=birds[4], 
-  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
-  sample_size=99, 
-  units=units
-)
+#sath_2017 <- calc_power_of_cov(
+#  four_letter_code=birds[4], 
+#  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+#  sample_size=99, 
+#  units=units
+#)
 
-alternative_model_power_results <- rbind(
+alternative_model_power_results_n_99 <- rbind(
     data.frame(
       species="casp",
       density=median( mean(na.rm=T, casp_2016$density), mean(na.rm=T, casp_2017$density) ),
@@ -542,29 +542,349 @@ alternative_model_power_results <- rbind(
       density=median( mean(na.rm=T, gtto_2016$density), mean(na.rm=T, gtto_2017$density) ),
       se=median( mean(na.rm=T, gtto_2016$se), mean(na.rm=T, gtto_2017$se) ),
       z_score=median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ),
-      power=1 - dnorm( median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ) )
+      power=dnorm( median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ) )
     ),
     data.frame(
       species="brsp",
       density=median( mean(na.rm=T, brsp_2016$density), mean(na.rm=T, brsp_2017$density) ),
       se=median( mean(na.rm=T, brsp_2016$se), mean(na.rm=T, brsp_2017$se) ),
       z_score=median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ),
-      power=1 - dnorm( median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ) )
+      power=dnorm( median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ) )
     ),
     data.frame(
       species="sath",
-      density=median( mean(na.rm=T, sath_2016$density), mean(na.rm=T, sath_2017$density) ),
-      se=median( mean(na.rm=T, sath_2016$se), mean(na.rm=T, sath_2017$se) ),
-      z_score=median( ( mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se) ) - (1.96/2), ( mean(na.rm=T, sath_2017$density) / mean(na.rm=T, sath_2017$se) ) - (1.96/2) ),
-      power=1 - dnorm( median( ( mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se) ) - (1.96/2), ( mean(na.rm=T, sath_2017$density) / mean(na.rm=T, sath_2017$se) ) - (1.96/2) ) )
+      density=mean(na.rm=T, sath_2016$density),
+      se=mean(na.rm=T, sath_2016$se),
+      z_score=(mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se) ) - (1.96/2),
+      power=dnorm( (mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se)) - (1.96/2)  )
+    )
+)
+
+brsp_2016 <- calc_power_of_cov(
+  four_letter_code=birds[1], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=198, 
+  units=units
+)
+
+brsp_2017 <- calc_power_of_cov(
+  four_letter_code=birds[1], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=198, 
+  units=units
+)
+
+casp_2016 <- calc_power_of_cov(
+  four_letter_code=birds[2], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=198, 
+  units=units
+)
+
+casp_2017 <- calc_power_of_cov(
+  four_letter_code=birds[2], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=198, 
+  units=units
+)
+
+gtto_2016 <- calc_power_of_cov(
+  four_letter_code=birds[3], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=198, 
+  units=units
+)
+
+gtto_2017 <- calc_power_of_cov(
+  four_letter_code=birds[3], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=198, 
+  units=units
+)
+
+sath_2016 <- calc_power_of_cov(
+  four_letter_code=birds[4], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=198, 
+  units=units
+)
+
+alternative_model_power_results_n_198 <- rbind(
+    data.frame(
+      species="casp",
+      density=median( mean(na.rm=T, casp_2016$density), mean(na.rm=T, casp_2017$density) ),
+      se=median( mean(na.rm=T, casp_2016$se), mean(na.rm=T, casp_2017$se) ),
+      z_score=median( ( mean(na.rm=T, casp_2016$density) / mean(na.rm=T, casp_2016$se) ) - (1.96/2), ( mean(na.rm=T, casp_2017$density) / mean(na.rm=T, casp_2017$se) ) - (1.96/2) ),
+      power=1 - dnorm( median( ( mean(na.rm=T, casp_2016$density) / mean(na.rm=T, casp_2016$se) ) - (1.96/2), ( mean(na.rm=T, casp_2017$density) /   mean(na.rm=T, casp_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="gtto",
+      density=median( mean(na.rm=T, gtto_2016$density), mean(na.rm=T, gtto_2017$density) ),
+      se=median( mean(na.rm=T, gtto_2016$se), mean(na.rm=T, gtto_2017$se) ),
+      z_score=median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ),
+      power=dnorm( median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="brsp",
+      density=median( mean(na.rm=T, brsp_2016$density), mean(na.rm=T, brsp_2017$density) ),
+      se=median( mean(na.rm=T, brsp_2016$se), mean(na.rm=T, brsp_2017$se) ),
+      z_score=median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ),
+      power=dnorm( median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="sath",
+      density=mean(na.rm=T, sath_2016$density),
+      se=mean(na.rm=T, sath_2016$se),
+      z_score=(mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se) ) - (1.96/2),
+      power=dnorm( (mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se)) - (1.96/2)  )
+    )
+)
+
+brsp_2016 <- calc_power_of_cov(
+  four_letter_code=birds[1], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=396, 
+  units=units
+)
+
+brsp_2017 <- calc_power_of_cov(
+  four_letter_code=birds[1], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=396, 
+  units=units
+)
+
+casp_2016 <- calc_power_of_cov(
+  four_letter_code=birds[2], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=396, 
+  units=units
+)
+
+casp_2017 <- calc_power_of_cov(
+  four_letter_code=birds[2], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=396, 
+  units=units
+)
+
+gtto_2016 <- calc_power_of_cov(
+  four_letter_code=birds[3], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=396, 
+  units=units
+)
+
+gtto_2017 <- calc_power_of_cov(
+  four_letter_code=birds[3], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=396, 
+  units=units
+)
+
+sath_2016 <- calc_power_of_cov(
+  four_letter_code=birds[4], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=396, 
+  units=units
+)
+
+alternative_model_power_results_n_396 <- rbind(
+    data.frame(
+      species="casp",
+      density=median( mean(na.rm=T, casp_2016$density), mean(na.rm=T, casp_2017$density) ),
+      se=median( mean(na.rm=T, casp_2016$se), mean(na.rm=T, casp_2017$se) ),
+      z_score=median( ( mean(na.rm=T, casp_2016$density) / mean(na.rm=T, casp_2016$se) ) - (1.96/2), ( mean(na.rm=T, casp_2017$density) / mean(na.rm=T, casp_2017$se) ) - (1.96/2) ),
+      power=1 - dnorm( median( ( mean(na.rm=T, casp_2016$density) / mean(na.rm=T, casp_2016$se) ) - (1.96/2), ( mean(na.rm=T, casp_2017$density) /   mean(na.rm=T, casp_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="gtto",
+      density=median( mean(na.rm=T, gtto_2016$density), mean(na.rm=T, gtto_2017$density) ),
+      se=median( mean(na.rm=T, gtto_2016$se), mean(na.rm=T, gtto_2017$se) ),
+      z_score=median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ),
+      power=dnorm( median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="brsp",
+      density=median( mean(na.rm=T, brsp_2016$density), mean(na.rm=T, brsp_2017$density) ),
+      se=median( mean(na.rm=T, brsp_2016$se), mean(na.rm=T, brsp_2017$se) ),
+      z_score=median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ),
+      power=dnorm( median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="sath",
+      density=mean(na.rm=T, sath_2016$density),
+      se=mean(na.rm=T, sath_2016$se),
+      z_score=(mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se) ) - (1.96/2),
+      power=dnorm( (mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se)) - (1.96/2)  )
+    )
+)
+
+brsp_2016 <- calc_power_of_cov(
+  four_letter_code=birds[1], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=792, 
+  units=units
+)
+
+brsp_2017 <- calc_power_of_cov(
+  four_letter_code=birds[1], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=792, 
+  units=units
+)
+
+casp_2016 <- calc_power_of_cov(
+  four_letter_code=birds[2], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=792, 
+  units=units
+)
+
+casp_2017 <- calc_power_of_cov(
+  four_letter_code=birds[2], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=792, 
+  units=units
+)
+
+gtto_2016 <- calc_power_of_cov(
+  four_letter_code=birds[3], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=792, 
+  units=units
+)
+
+gtto_2017 <- calc_power_of_cov(
+  four_letter_code=birds[3], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=792, 
+  units=units
+)
+
+sath_2016 <- calc_power_of_cov(
+  four_letter_code=birds[4], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=792, 
+  units=units
+)
+
+alternative_model_power_results_n_792 <- rbind(
+    data.frame(
+      species="casp",
+      density=median( mean(na.rm=T, casp_2016$density), mean(na.rm=T, casp_2017$density) ),
+      se=median( mean(na.rm=T, casp_2016$se), mean(na.rm=T, casp_2017$se) ),
+      z_score=median( ( mean(na.rm=T, casp_2016$density) / mean(na.rm=T, casp_2016$se) ) - (1.96/2), ( mean(na.rm=T, casp_2017$density) / mean(na.rm=T, casp_2017$se) ) - (1.96/2) ),
+      power=1 - dnorm( median( ( mean(na.rm=T, casp_2016$density) / mean(na.rm=T, casp_2016$se) ) - (1.96/2), ( mean(na.rm=T, casp_2017$density) /   mean(na.rm=T, casp_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="gtto",
+      density=median( mean(na.rm=T, gtto_2016$density), mean(na.rm=T, gtto_2017$density) ),
+      se=median( mean(na.rm=T, gtto_2016$se), mean(na.rm=T, gtto_2017$se) ),
+      z_score=median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ),
+      power=dnorm( median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="brsp",
+      density=median( mean(na.rm=T, brsp_2016$density), mean(na.rm=T, brsp_2017$density) ),
+      se=median( mean(na.rm=T, brsp_2016$se), mean(na.rm=T, brsp_2017$se) ),
+      z_score=median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ),
+      power=dnorm( median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="sath",
+      density=mean(na.rm=T, sath_2016$density),
+      se=mean(na.rm=T, sath_2016$se),
+      z_score=(mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se) ) - (1.96/2),
+      power=dnorm( (mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se)) - (1.96/2)  )
+    )
+)
+
+brsp_2016 <- calc_power_of_cov(
+  four_letter_code=birds[1], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=1584, 
+  units=units
+)
+
+brsp_2017 <- calc_power_of_cov(
+  four_letter_code=birds[1], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=1584, 
+  units=units
+)
+
+casp_2016 <- calc_power_of_cov(
+  four_letter_code=birds[2], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=1584, 
+  units=units
+)
+
+casp_2017 <- calc_power_of_cov(
+  four_letter_code=birds[2], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=1584, 
+  units=units
+)
+
+gtto_2016 <- calc_power_of_cov(
+  four_letter_code=birds[3], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=1584, 
+  units=units
+)
+
+gtto_2017 <- calc_power_of_cov(
+  four_letter_code=birds[3], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=1584, 
+  units=units
+)
+
+sath_2016 <- calc_power_of_cov(
+  four_letter_code=birds[4], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=1584, 
+  units=units
+)
+
+alternative_model_power_results_n_1584 <- rbind(
+    data.frame(
+      species="casp",
+      density=median( mean(na.rm=T, casp_2016$density), mean(na.rm=T, casp_2017$density) ),
+      se=median( mean(na.rm=T, casp_2016$se), mean(na.rm=T, casp_2017$se) ),
+      z_score=median( ( mean(na.rm=T, casp_2016$density) / mean(na.rm=T, casp_2016$se) ) - (1.96/2), ( mean(na.rm=T, casp_2017$density) / mean(na.rm=T, casp_2017$se) ) - (1.96/2) ),
+      power=1 - dnorm( median( ( mean(na.rm=T, casp_2016$density) / mean(na.rm=T, casp_2016$se) ) - (1.96/2), ( mean(na.rm=T, casp_2017$density) /   mean(na.rm=T, casp_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="gtto",
+      density=median( mean(na.rm=T, gtto_2016$density), mean(na.rm=T, gtto_2017$density) ),
+      se=median( mean(na.rm=T, gtto_2016$se), mean(na.rm=T, gtto_2017$se) ),
+      z_score=median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ),
+      power=dnorm( median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="brsp",
+      density=median( mean(na.rm=T, brsp_2016$density), mean(na.rm=T, brsp_2017$density) ),
+      se=median( mean(na.rm=T, brsp_2016$se), mean(na.rm=T, brsp_2017$se) ),
+      z_score=median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ),
+      power=dnorm( median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="sath",
+      density=mean(na.rm=T, sath_2016$density),
+      se=mean(na.rm=T, sath_2016$se),
+      z_score=(mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se) ) - (1.96/2),
+      power=dnorm( (mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se)) - (1.96/2)  )
     )
 )
 
 save(
   list=ls(pattern="^p_"),
   file=paste(
-    "/home/ktaylora/power_analysis_run_results.rdata",
-    sep=""
+     "/home/ktaylora/power_analysis_run_results.rdata",
+     sep=""
   ),
   compress=T
 )
