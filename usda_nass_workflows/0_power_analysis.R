@@ -20,7 +20,7 @@ N_BS_REPLICATES           <- 999
 fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="P"){
   if(length(lambdas)>1){
     cl <- parallel::makeCluster(parallel::detectCores()-1)
-    parallel::clusterExport(cl, varlist=c("umdf","mixture"))
+    parallel::clusterExport(cl, varlist=c("umdf","mixture"), envir=environment())
     unmarked_models <- parallel::parLapply(
         cl=cl,
         X=lambdas,
@@ -160,9 +160,8 @@ bs_calc_power <- function(
   # re-build our training data frame
   s <- OpenIMBCR:::calc_route_centroids(
       s=s,
-      four_letter_code=toupper(argv[2]),
-      use='est_abund'
-    )
+      four_letter_code=toupper(argv[2])
+  )
   # join with our habitat covariates
   s <- OpenIMBCR:::spatial_join(s, units)
   s$effort <- effort
@@ -276,9 +275,140 @@ bs_calc_power <- function(
       }
     )
   )
+  parallel::stopCluster(cl)
   return(replicates)
 }
-
+#' bootstrap a simple model of a known covariate to use as a basis 
+#' for representing the power of a model given a fixed number of transects.
+#' By default, this calculates the density + SE for 'total area of shrubland'
+#' covariate
+calc_power_of_cov <- function(
+  replicates=N_BS_REPLICATES,
+  var="shrub_ar",
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv",
+  formula="poly(shrub_ar, 1, raw = T) + poly(grass_ar, 1, raw = T) + offset(log(effort))",
+  four_letter_code=NULL,
+  units=NULL,
+  downsample_fun=sample,
+  sample_size=NULL
+){
+  # read-in our IMBCR transect data
+  s <- OpenIMBCR:::scrub_imbcr_df(
+    OpenIMBCR:::imbcrTableToShapefile(s),
+    four_letter_code = toupper(four_letter_code)
+  )
+  # calculate our detections and sampling effort
+  detections <- OpenIMBCR:::calc_dist_bins(s)
+  effort     <- as.vector(OpenIMBCR:::calc_transect_effort(s))
+  # re-build our training data frame
+  s <- OpenIMBCR:::calc_route_centroids(
+      s=s,
+      four_letter_code=toupper(four_letter_code)
+    )
+  # join with our habitat covariates
+  s <- OpenIMBCR:::spatial_join(s, units)
+  s$effort <- effort
+  # set-up our cluster
+  cl <- parallel::makeCluster(parallel::detectCores()-1)
+  parallel::clusterExport(
+    cl,
+    varlist=c(
+      "s","detections","fit_gdistsamp","formula","var"
+    ),
+    envir=environment()
+  )
+  replicates <- do.call(
+    rbind,
+    parallel::parLapply(
+      cl=cl,
+      X=1:replicates,
+      fun=function(x){
+        require(unmarked)  
+        # which sample densities should we keep?
+        low    <- which(s@data[,var] <= as.vector(quantile(s@data[,var], probs=0.33)))
+        low <- try(sample(
+            low, 
+            size=sample_size/3
+        ))
+        # bin our low densities
+        if(class(low) == "try-error"){
+            low    <- which(s@data[,var] <= as.vector(quantile(s@data[,var], probs=0.33)))
+            low <- sample(
+            low,
+            size=sample_size/3,
+            replace=T
+            )
+        }
+        # bin our medium densities
+        medium <- which( s@data[,var] > as.vector(quantile(s@data[,var], probs=0.33)) & s@data[,var] <= as.vector(quantile(s@data[,var], probs=0.66)) )
+        medium <- try(sample(
+            medium, 
+            size=sample_size/3
+        ))
+        if(class(medium) == "try-error"){
+            medium <- which( s@data[,var] > as.vector(quantile(s@data[,var], probs=0.33)) & s@data[,var] <= as.vector(quantile(s@data[,var], probs=0.66)) )
+            medium <- sample(
+            medium,
+            size=sample_size/3,
+            replace=T
+            )
+        }
+        # bin our high densities
+        high <- which( s@data[,var] > as.vector(quantile(s@data[,var], probs=0.66)) )
+        high <- try(sample(
+            high, 
+            size=sample_size/3
+        ))
+        if(class(high) == "try-error"){
+            high <- which( s@data[,var] > as.vector(quantile(s@data[,var], probs=0.66)) )
+            high <- sample(
+            high,
+            size=sample_size/3,
+            replace=T
+            )
+        }
+        # build our unmarked data.frame
+        keep <- c(low, medium, high)
+        umdf <- unmarked::unmarkedFrameGDS(
+                y=as.matrix(detections$y)[keep,],
+                siteCovs=s@data[keep,c(var,'grass_ar','effort')],
+                dist.breaks=detections$breaks,
+                numPrimary=1,
+                survey="point",
+                unitsIn="m"
+                )
+        # pre-allocate a table so that we can return at-least an NA value
+        # if a run fails
+        return_table <- data.frame(
+            density=NA,
+            se=NA,
+            aic=NA
+        )
+        # fit a model
+        try(m <- fit_gdistsamp(
+            lambda=formula,
+            umdf=umdf,
+            mixture="NB"
+        ))
+        if(class(m) %in% c("try-error","logical")){
+            return(return_table)
+        }
+        # record fit statistics in our return table
+        density <- se <-
+            unmarked::predict(
+            m,
+            type="lambda"
+        )[,1:2]
+        return_table$density <- mean(density[,1])
+        return_table$se <-  mean(se[,2])
+        return_table$aic <- m@AIC
+        # return to user
+        return(return_table)
+    })
+  )
+  parallel::stopCluster(cl)
+  return(replicates)
+}
 # for 2016, determine the loss of power from current stratification if we
 # downsample by certain thresholds
 
@@ -338,28 +468,102 @@ p_10_perc_reduction_2017 <- bs_calc_power(
   top_model=as.numeric(row.names(model_selection_table@Full[1,]))
 )
 
-# Alternative : for 2016, what's the sample-size needed to capture a significant effect
-# for an important variable?
+# Alternative : for 2016 and 2017, what's the sample-size needed to capture a significant effect
+# for an important variable -- in this case "shrub area"?
 
-# Alternative : for 2017, what's the sample-size needed to capture a significant effect
-# for a marginally important variable?
+birds <- c("BRSP","CASP","GTTO","SATH") # Brewer's Sparrow, Cassin's Sparrow, Green-tailed Tohee, Sage Thrasher 
 
-n_detections_in_alternative_sample <- round(mean(sapply(
-  X=1:N_BS_REPLICATES,
-  FUN=function(x){
-    sum(
-      sample(
-        rowSums(detections$y), size=DOWNSAMPLING_THRESHOLD*nrow(detections$y))
+brsp_2016 <- calc_power_of_cov(
+  four_letter_code=birds[1], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=99, 
+  units=units
+)
+
+brsp_2017 <- calc_power_of_cov(
+  four_letter_code=birds[1], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=99, 
+  units=units
+)
+
+casp_2016 <- calc_power_of_cov(
+  four_letter_code=birds[2], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=99, 
+  units=units
+)
+
+casp_2017 <- calc_power_of_cov(
+  four_letter_code=birds[2], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=99, 
+  units=units
+)
+
+gtto_2016 <- calc_power_of_cov(
+  four_letter_code=birds[3], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=99, 
+  units=units
+)
+
+gtto_2017 <- calc_power_of_cov(
+  four_letter_code=birds[3], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=99, 
+  units=units
+)
+
+sath_2016 <- calc_power_of_cov(
+  four_letter_code=birds[4], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20161201.csv", 
+  sample_size=99, 
+  units=units
+)
+
+sath_2017 <- calc_power_of_cov(
+  four_letter_code=birds[4], 
+  s="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
+  sample_size=99, 
+  units=units
+)
+
+alternative_model_power_results <- rbind(
+    data.frame(
+      species="casp",
+      density=median( mean(na.rm=T, casp_2016$density), mean(na.rm=T, casp_2017$density) ),
+      se=median( mean(na.rm=T, casp_2016$se), mean(na.rm=T, casp_2017$se) ),
+      z_score=median( ( mean(na.rm=T, casp_2016$density) / mean(na.rm=T, casp_2016$se) ) - (1.96/2), ( mean(na.rm=T, casp_2017$density) / mean(na.rm=T, casp_2017$se) ) - (1.96/2) ),
+      power=1 - dnorm( median( ( mean(na.rm=T, casp_2016$density) / mean(na.rm=T, casp_2016$se) ) - (1.96/2), ( mean(na.rm=T, casp_2017$density) /   mean(na.rm=T, casp_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="gtto",
+      density=median( mean(na.rm=T, gtto_2016$density), mean(na.rm=T, gtto_2017$density) ),
+      se=median( mean(na.rm=T, gtto_2016$se), mean(na.rm=T, gtto_2017$se) ),
+      z_score=median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ),
+      power=1 - dnorm( median( ( mean(na.rm=T, gtto_2016$density) / mean(na.rm=T, gtto_2016$se) ) - (1.96/2), ( mean(na.rm=T, gtto_2017$density) / mean(na.rm=T, gtto_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="brsp",
+      density=median( mean(na.rm=T, brsp_2016$density), mean(na.rm=T, brsp_2017$density) ),
+      se=median( mean(na.rm=T, brsp_2016$se), mean(na.rm=T, brsp_2017$se) ),
+      z_score=median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ),
+      power=1 - dnorm( median( ( mean(na.rm=T, brsp_2016$density) / mean(na.rm=T, brsp_2016$se) ) - (1.96/2), ( mean(na.rm=T, brsp_2017$density) / mean(na.rm=T, brsp_2017$se) ) - (1.96/2) ) )
+    ),
+    data.frame(
+      species="sath",
+      density=median( mean(na.rm=T, sath_2016$density), mean(na.rm=T, sath_2017$density) ),
+      se=median( mean(na.rm=T, sath_2016$se), mean(na.rm=T, sath_2017$se) ),
+      z_score=median( ( mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se) ) - (1.96/2), ( mean(na.rm=T, sath_2017$density) / mean(na.rm=T, sath_2017$se) ) - (1.96/2) ),
+      power=1 - dnorm( median( ( mean(na.rm=T, sath_2016$density) / mean(na.rm=T, sath_2016$se) ) - (1.96/2), ( mean(na.rm=T, sath_2017$density) / mean(na.rm=T, sath_2017$se) ) - (1.96/2) ) )
     )
-  }
-)))
+)
 
 save(
   list=ls(pattern="^p_"),
   file=paste(
-    "/home/ktaylora/",
-    tolower(argv[2]),
-    "_power_analysis_run_results.rdata",
+    "/home/ktaylora/power_analysis_run_results.rdata",
     sep=""
   ),
   compress=T
