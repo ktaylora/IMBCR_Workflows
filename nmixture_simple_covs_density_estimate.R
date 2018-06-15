@@ -273,15 +273,4 @@ weights <- OpenIMBCR:::akaike_weights(
 density_ensemble <- weighted.mean(densities, weights=weights, na.rm=T)
 se_ensemble <- weighted.mean(std_errors, weights=weights, na.rm=T)
 
-r_data_file <- tolower(paste(argv[1],
-      "_imbcr_intecerpt_predictions_",
-      gsub(format(Sys.time(), "%b %d %Y"), pattern=" ", replacement="_"),
-      ".rdata",
-      sep="")
-  )
-
-save(
-    compress=T,
-    list=(ls(pattern="[a-z]")),
-    file=r_data_file
-  )
+print(data.frame(spp=argv[1], density=density_ensemble, se=se_ensemble))
