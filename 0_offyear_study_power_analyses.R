@@ -362,7 +362,7 @@ bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=147,
     if ( round(abs(median(cohens_d_n) - mean(cohens_d_n)), 2) != 0 ) {
       warning("cohen's d statistic looks skewed")
     } 
-    return(mean(cohens_d_n, na.rm = T))
+    return(round(mean(cohens_d_n, na.rm = T), 2))
   }
 }
 #' bootstrap our pseudo r squared estimation
