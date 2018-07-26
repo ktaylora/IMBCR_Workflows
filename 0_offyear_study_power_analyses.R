@@ -34,16 +34,16 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="NB") {
         X=lambdas,
         fun=function(m) {
           ret <- try(unmarked::gdistsamp(
-            pformula=as.formula("~1"),
-            lambdaformula=as.formula(paste("~", m, sep="")),
-            phiformula=as.formula("~1"),
-            data=umdf,
-            se=T,
-            K=max(rowSums(umdf@y)),
-            keyfun="halfnorm",
-            unitsOut="kmsq",
-            mixture=mixture,
-            output="abund"
+            pformula = as.formula("~1"),
+            lambdaformula = as.formula(paste("~", m, sep="")),
+            phiformula = as.formula("~1"),
+            data = umdf,
+            se = T,
+            K = max(rowSums(umdf@y)),
+            keyfun = "halfnorm",
+            unitsOut = "kmsq",
+            mixture = mixture,
+            output = "abund"
           ))
          if (class(ret) == "try-error") {
            return(NA)
@@ -55,16 +55,16 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="NB") {
     return(unmarked_models);
   } else {
      ret <- try(unmarked::gdistsamp(
-      pformula=as.formula("~1"),
-      lambdaformula=as.formula(paste("~", unlist(lambdas), sep="")),
-      phiformula=as.formula("~1"),
-      data=umdf,
-      se=T,
-      K=max(rowSums(umdf@y)),
-      keyfun="halfnorm",
-      unitsOut="kmsq",
-      mixture=mixture,
-      output="abund"
+      pformula = as.formula("~1"),
+      lambdaformula = as.formula(paste("~", unlist(lambdas), sep="")),
+      phiformula = as.formula("~1"),
+      data = umdf,
+      se = T,
+      K = max(rowSums(umdf@y)),
+      keyfun = "halfnorm",
+      unitsOut = "kmsq",
+      mixture = mixture,
+      output = "abund"
     ))
     if (class(ret) == "try-error") {
       return(NA)
@@ -73,11 +73,11 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="NB") {
     }
   }
 }
-#' build an unmarked data.frame (umdf) for fitting a distsamp model from 
+#' build an unmarked data.frame (umdf) for fitting a distsamp model from
 #' a matrix of 1-km2 site covariates
 build_umdf_for_spp <- function(
-  path="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv", 
-  four_letter_code=NULL, 
+  path="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv",
+  four_letter_code=NULL,
   site_covs=NULL) {
   colnames(site_covs) <- tolower(colnames(site_covs))
   # this returns an IMBCR SpatialPointsDataFrame
@@ -90,18 +90,18 @@ build_umdf_for_spp <- function(
   # only consider THESE transects, if specified by user
   if (!is.null(site_covs)) {
     transect_ids <- unique(tolower(site_covs$transectnum))
-    matching_transects <- tolower(imbcr_detections$transectnum) %in% 
+    matching_transects <- tolower(imbcr_detections$transectnum) %in%
       tolower(site_covs$transectnum)
-    if ( sum(tolower(unique(imbcr_detections$transectnum)) %in% 
+    if ( sum(tolower(unique(imbcr_detections$transectnum)) %in%
              tolower(site_covs$transectnum) )  != nrow(site_covs) ) {
-      warning("not all transect_ids were found in the IMBCR data.frame -- only found:", 
+      warning("not all transect_ids were found in the IMBCR data.frame -- only found:",
               sum(matching_transects), "/", length(transect_ids), sep = "")
     }
     imbcr_detections <- imbcr_detections[matching_transects,]
-    transect_ids <- transect_ids[ tolower(transect_ids) %in% 
+    transect_ids <- transect_ids[ tolower(transect_ids) %in%
                                     tolower(imbcr_detections$transectnum) ]
   }
-  
+
   # define an arbitrary 10 breaks that will be used
   # to construct distance bins
   breaks <- append(0,as.numeric(quantile(as.numeric(
@@ -109,48 +109,48 @@ build_umdf_for_spp <- function(
     na.rm=T,
     probs=seq(0.05,0.90,length.out=9))
   ))
-  
+
   detections <- OpenIMBCR:::calc_dist_bins(
     imbcr_detections,
     breaks=breaks
   )
-  
+
   if (is.null(site_covs)) {
     return(detections)
   } else {
     return( unmarked::unmarkedFrameGDS(
       y=as.matrix(detections$y),
-      siteCovs=site_covs[tolower(site_covs$transectnum) %in% 
+      siteCovs = site_covs[tolower(site_covs$transectnum) %in%
                            tolower(transect_ids) , ],
-      dist.breaks=detections$breaks,
-      numPrimary=1,
-      survey="point",
-      unitsIn="m"
+      dist.breaks = detections$breaks,
+      numPrimary = 1,
+      survey = "point",
+      unitsIn = "m"
     )
     )
   }
-  
+
 }
 #' downsample MEsquite and JUniper transects using their joint percent-cover
 #' estimate -- this will balance our zero shrub transects with our non-zero
 #' shrub transects
-downsample_transects_by <- function(bird_data=NULL, by="mean", m_scale=NULL, 
+downsample_transects_by <- function(bird_data=NULL, by="mean", m_scale=NULL,
                                     inflation_threshold=1.1) {
   # back-scale if needed
   if (min(bird_data[ , grepl(colnames(bird_data), pattern = by) ]) < 0) {
     bird_data <- bird_data[ , grepl(colnames(bird_data), pattern = by) ]
-    for (var in colnames(bird_data)[ which(grepl(colnames(bird_data), 
+    for (var in colnames(bird_data)[ which(grepl(colnames(bird_data),
                                                  pattern = by)) ]) {
       bird_data[ , var] <- backscale_var(var, df = bird_data, m_scale)
     }
   }
-  
+
   zero_transects <- as.vector(which(rowSums(
     bird_data[ , grepl(colnames(bird_data), pattern = by)]) == 0))
   non_zero_transects <- as.vector(which(rowSums(
     bird_data[ , grepl(colnames(bird_data), pattern = by)]) != 0))
-  
-  if ( length(zero_transects) > inflation_threshold * 
+
+  if ( length(zero_transects) > inflation_threshold *
        length(non_zero_transects) ) {
     zero_transects <- sample(zero_transects, size = length(non_zero_transects))
     return(c(non_zero_transects, zero_transects))
@@ -172,7 +172,7 @@ est_residual_sd <- function(m=NULL, log=F) {
 #' a robust estimator of residual standard error that can account for
 #' degrees of freedom in a model
 est_residual_se <- function(m=NULL) {
-  # A robust SE estimator that takes into account df 
+  # A robust SE estimator that takes into account df
   # (still assumes error and sd are proportional and normal)
   return( est_residual_sd(m, log = F) / sqrt( m$df.residual ) ) # SD -> SE
 }
@@ -182,7 +182,7 @@ est_k_parameters <- function(m=NULL) {
   intercept_terms <- 0
   if ( inherits(m, "unmarkedFitGDS") ) {
     intercept_terms <- 3 # lambda, p, and dispersion
-    k <- length(unlist(strsplit(paste(as.character(m@formula), 
+    k <- length(unlist(strsplit(paste(as.character(m@formula),
                                       collapse = ""), split = "[+]")))
     if (k == 1) { # no '+' signs separating terms in the model?
       k <- k - 1
@@ -190,7 +190,7 @@ est_k_parameters <- function(m=NULL) {
     k <- k + intercept_terms
   } else if ( inherits(m, "glm") ) {
     intercept_terms <- 1
-    k <- length(unlist(strsplit(paste(as.character(m$formula), 
+    k <- length(unlist(strsplit(paste(as.character(m$formula),
                                       collapse = ""), split="[+]")))
     if (k == 1) { # no '+' signs separating terms in the model?
       k <- k - 1
@@ -215,7 +215,7 @@ est_deviance_from_likelihood <- function(m=NULL) {
 est_residual_mse <- function(m) {
   if ( inherits(m, "unmarkedFitGDS") ) {
     df <- length(m@data@y) - est_k_parameters(m)
-    sum_sq_resid_err <- sum(colSums(residuals(m)^2), na.rm=T)
+    sum_sq_resid_err <- sum(colSums(residuals(m)^2), na.rm = T)
     # Mean Sum of Squares Error
     sum_sq_resid_mse <- sum_sq_resid_err / df
     return(sum_sq_resid_mse)
@@ -241,7 +241,8 @@ est_residual_sse <- function(m, log=F) {
     return(NA)
   }
 }
-#' estimate power from a glm using a Cohen's D statistic
+#' estimate power from the effect (mean - 0) and residual error of a model
+#' using Cohen's D statistic
 est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
   m_power <- NA
   z_alpha <- round( (1 - alpha)*2.06, 2 )
@@ -249,9 +250,9 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
     # R's GLM interface reports standard deviation of residuals by default,
     # this derivation of Cohen's power accomodates SD
     # note: using the probability mass function for our test
-    m_power <- dnorm( (abs(mean(predict(m)) - 0) / sigma(m) ) * 
-                       sqrt(m$df.residual) - z_alpha ) 
-    m_power <- 1 - ifelse( round( m_power, 4) == 0, 1 / m$df.residual, 
+    m_power <- dnorm( (abs(mean(predict(m)) - 0) / sigma(m) ) *
+                       sqrt(m$df.residual) - z_alpha )
+    m_power <- 1 - ifelse( round( m_power, 4) == 0, 1 / m$df.residual,
                            round( m_power, 4) )
   } else if ( inherits(m, "unmarkedFitGDS") ) {
     # unmarked's HDS interface reports standard error of residuals by default,
@@ -259,34 +260,33 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
     df <- length(m@data@y) - est_k_parameters(m)
     m_power <- colMeans(unmarked::predict(m, type = "lambda")) # lambda, se, ...
     # log-scale our effect and se?
-    if (log) m_power <- log(m_power) 
+    if (log) m_power <- log(m_power)
     # note: using the probability mass function for our test
-    m_power <- dnorm( ((m_power[1] - 0) / m_power[2]) - z_alpha ) 
+    m_power <- dnorm( ((m_power[1] - 0) / m_power[2]) - z_alpha )
     m_power <- 1 -  ifelse( round( m_power, 4) == 0, 1 / df, round( m_power, 4) )
   }
   if (report) {
     cat(" ######################################################\n")
     cat("  Cohen's Power Analysis\n")
     cat(" ######################################################\n")
-    cat("  -- 1-beta (power) :", round(m_power, 4) )
-    cat("\n  -- significantly different than zero? :", 
+    cat("  -- 1-beta (power) :", round(m_power, 4) ,"\n")
+    cat("  -- significantly different than zero? :",
         as.character( m_power > (1-alpha) ), "\n")
   }
   return(list(power = as.vector(m_power)))
 }
 #' estimate McFadden's pseudo r-squared
 est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
-  require(unmarked)
   if ( inherits(m, "unmarkedFitGDS") ) {
-    intercept_m <- update(m, "~1", mixture=m@mixture)
+    intercept_m <- unmarked::update(m, "~1", mixture=m@mixture)
     if (grepl(tolower(method), pattern="likelihood")) {
       # this is a k-parameter "adjusted" mcfadden's pseudo r-squared
       r_squared <- 1 - (
-        ( abs(m@negLogLike)-est_k_parameters(m) ) /
-          ( abs(intercept_m@negLogLike) - est_k_parameters(m) )
+        ( abs(m@negLogLike) - est_k_parameters(m) ) /
+        ( abs(intercept_m@negLogLike) - est_k_parameters(m) )
       )
     } else if (grepl(tolower(method), pattern="mse")) {
-      intercept_m <- update(m, "~1", mixture=m@mixture)
+      intercept_m <- unmarked::update(m, "~1", mixture=m@mixture)
       r_squared <- 1 - ( est_residual_mse(m) / est_residual_mse(intercept_m) )
     }
   } else if ( inherits(m, "glm") ) {
@@ -296,21 +296,42 @@ est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
   }
   return( ifelse(r_squared < 0, 0, round(r_squared, 2)) )
 }
+#' Cohen's (1988) power for null and alternative models that leverages
+#' residual variance explained for effects sizes for a take on the f-ratio
+#' test
+est_cohens_f_power <- function(m_0=NULL, m_1=NULL, alpha=0.05){
+  r_1 <- ifelse( is.numeric(m_1), m_1, est_pseudo_rsquared(m_1) )
+  r_0 <- ifelse( is.numeric(m_0), m_0, est_pseudo_rsquared(m_0) )
+  # estimate an effect size (f statistic)
+  f_effect_size <-  (r_1 - r_0) / (1 - r_1)
+  u <- length(m_0@data@y) - est_k_parameters(m_0) # degrees of freedom for null model
+  v <- length(m_1@data@y) - est_k_parameters(m_1) # degrees of freedom for alternative model
+  lambda <- f_effect_size * (u+v+1)
+  # calling the f-distribution probability density function (1 - beta)
+  power <- pf(
+    qf(alpha, u, v, lower = FALSE),
+    u,
+    v,
+    lambda,
+    lower = FALSE
+  )
+  return(power)
+}
 #' a bootstrapped implementation of the Cohen's D test
-bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=147, 
+bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=147,
                                   replace=T, m_scale=NULL, type="gdistsamp") {
   # is this a standard glm?
   if (grepl(tolower(type), pattern = "glm")) {
     return(NA)
     # are we fitting a hierarchical model?
-  } else if (grepl(tolower(type), pattern="gdistsamp")) {
+  } else if (grepl(tolower(type), pattern = "gdistsamp")) {
     # set-up our workspace for a parallelized operation
     cl <- parallel::makeCluster(parallel::detectCores() - 1)
     parallel::clusterExport(
       cl,
       varlist = c("downsample_transects_by",
                 "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
-                "est_residual_sse","N_BS_REPLICATES", "backscale_var", 
+                "est_residual_sse","N_BS_REPLICATES", "backscale_var",
                 "est_cohens_d_power"),
       envir = globalenv()
     )
@@ -361,12 +382,12 @@ bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=147,
     # check for normality
     if ( round(abs(median(cohens_d_n) - mean(cohens_d_n)), 2) != 0 ) {
       warning("cohen's d statistic looks skewed")
-    } 
+    }
     return(round(mean(cohens_d_n, na.rm = T), 2))
   }
 }
 #' bootstrap our pseudo r squared estimation
-bs_est_pseudo_rsquared <- function(formula=NULL, type="glm", bird_data=NULL, 
+bs_est_pseudo_rsquared <- function(formula=NULL, type="glm", bird_data=NULL,
                                    n=NULL, m_scale=NULL, replace=T) {
     # is this a standard glm?
     if (grepl(tolower(type), pattern = "glm")) {
@@ -376,9 +397,9 @@ bs_est_pseudo_rsquared <- function(formula=NULL, type="glm", bird_data=NULL,
             m <- glm(
                 formula = formula,
                 data = bird_data[sample(downsample_transects_by(
-                  bird_data = bird_data, 
-                  m_scale = m_scale), 
-                  size = n, 
+                  bird_data = bird_data,
+                  m_scale = m_scale),
+                  size = n,
                   replace = replace),],
                 family = poisson()
             );
@@ -448,15 +469,15 @@ bs_est_pseudo_rsquared <- function(formula=NULL, type="glm", bird_data=NULL,
 #' stolen in part from the AICcmodavg package, which has a broken implementation
 bs_est_chisq_gof_test <- function (formula=NULL, nsim=10) {
   require(parallel)
-  
+
   m <-
     #gof <- Nmix.gof.test(mod=m, nsim=600, plot.hist=F)
     model.type <- AICcmodavg:::Nmix.chisq(m)$model.type
-  
+
   cl <- parallel::makeCluster(parallel::detectCores()-1)
-  
+
   parallel::clusterExport(cl, varlist=c("nsim","umdf","m"))
-  
+
   bs <- parallel::parLapply(
     cl=cl,
     X=1:nsim,
@@ -468,20 +489,20 @@ bs_est_chisq_gof_test <- function (formula=NULL, nsim=10) {
         return(list(t0=as.vector(ret@t0), t.star=as.vector(ret@t.star)))
       }
     })
-  
+
   t.star <- unlist(bs) [ which(names(unlist(bs)) == "t.star") ]
   t0 <- unlist(bs) [ which(names(unlist(bs)) == "t0") ]
-  
+
   nsim <- length(t.star) # update our nsim to account for any failures
-  
+
   p.value <- sum(t.star >= t0) / nsim
-  
+
   if (p.value == 0) {
     p.display <- paste("<", round(1/length(t.star), 5))
   } else {
     p.display = paste("=", round(p.value, digits = 4))
   }
-  
+
   if (plot.hist) {
     hist(out@t.star, main = as.expression(substitute("Bootstrapped "*chi^2*" fit statistic ("*nsim*" samples)",
                                                      list(nsim = nsim))),
@@ -491,9 +512,9 @@ bs_est_chisq_gof_test <- function (formula=NULL, nsim=10) {
   }
   # estimate our dispersion parameter
   c.hat.est <- t0/mean(t.star)
-  
+
   gof.out <- list(model.type = model.type, chi.square = mean(t0), t.star = mean(t.star), p.value = p.display, c.hat.est = mean(c.hat.est), nsim = nsim)
-  
+
   return(gof.out)
 }
 
@@ -583,7 +604,7 @@ bird_data$weme_count <- as.numeric(sapply(
 
 # scale our explanatory dataset appropriately
 colnames(bird_data) <- tolower(colnames(bird_data))
-  to_scale <- !( colnames(bird_data) %in% 
+  to_scale <- !( colnames(bird_data) %in%
               c("grsp_count", "weme_count", "effort", "transectnum") )
 m_scale <- scale(bird_data[,to_scale])
 bird_data[,to_scale] <- scale(bird_data[,to_scale])
@@ -667,30 +688,30 @@ distance_models$grsp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$grsp$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$grsp$umdf, 
-  n = 154, 
-  replace = T, 
+  bird_data = distance_models$grsp$umdf,
+  n = 154,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_d_n_360 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$grsp$umdf, 
-  n = 360, 
-  replace = T, 
+  bird_data = distance_models$grsp$umdf,
+  n = 360,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_d_n_540 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$grsp$umdf, 
-  n = 540, 
-  replace = T, 
+  bird_data = distance_models$grsp$umdf,
+  n = 540,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_d_n_720 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$grsp$umdf, 
-  n = 720, 
-  replace = T, 
+  bird_data = distance_models$grsp$umdf,
+  n = 720,
+  replace = T,
   m_scale = m_scale
 )
 # WEME
@@ -713,30 +734,30 @@ distance_models$weme$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$weme$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$weme$umdf, 
-  n = 154, 
-  replace = T, 
+  bird_data = distance_models$weme$umdf,
+  n = 154,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$weme$cohens_d_n_360 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$weme$umdf, 
-  n = 360, 
-  replace = T, 
+  bird_data = distance_models$weme$umdf,
+  n = 360,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$weme$cohens_d_n_540 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$weme$umdf, 
-  n = 540, 
-  replace = T, 
+  bird_data = distance_models$weme$umdf,
+  n = 540,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$weme$cohens_d_n_720 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$weme$umdf, 
-  n = 720, 
-  replace = T, 
+  bird_data = distance_models$weme$umdf,
+  n = 720,
+  replace = T,
   m_scale = m_scale
 )
 # NOBO
@@ -759,30 +780,30 @@ distance_models$nobo$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$nobo$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$nobo$umdf, 
-  n = 154, 
-  replace = T, 
+  bird_data = distance_models$nobo$umdf,
+  n = 154,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_d_n_360 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$nobo$umdf, 
-  n = 360, 
-  replace = T, 
+  bird_data = distance_models$nobo$umdf,
+  n = 360,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_d_n_540 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$nobo$umdf, 
-  n = 540, 
-  replace = T, 
+  bird_data = distance_models$nobo$umdf,
+  n = 540,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_d_n_720 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$nobo$umdf, 
-  n = 720, 
-  replace = T, 
+  bird_data = distance_models$nobo$umdf,
+  n = 720,
+  replace = T,
   m_scale = m_scale
 )
 # HOLA
@@ -805,30 +826,30 @@ distance_models$hola$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$hola$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$hola$umdf, 
-  n = 154, 
-  replace = T, 
+  bird_data = distance_models$hola$umdf,
+  n = 154,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$hola$cohens_d_n_360 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$hola$umdf, 
-  n = 360, 
-  replace = T, 
+  bird_data = distance_models$hola$umdf,
+  n = 360,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$hola$cohens_d_n_540 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$hola$umdf, 
-  n = 540, 
-  replace = T, 
+  bird_data = distance_models$hola$umdf,
+  n = 540,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$hola$cohens_d_n_720 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$hola$umdf, 
-  n = 720, 
-  replace = T, 
+  bird_data = distance_models$hola$umdf,
+  n = 720,
+  replace = T,
   m_scale = m_scale
 )
 # CASP
@@ -851,30 +872,30 @@ distance_models$casp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$casp$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$casp$umdf, 
-  n = 154, 
-  replace = T, 
+  bird_data = distance_models$casp$umdf,
+  n = 154,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$casp$cohens_d_n_360 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$casp$umdf, 
-  n = 360, 
-  replace = T, 
+  bird_data = distance_models$casp$umdf,
+  n = 360,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$casp$cohens_d_n_540 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$casp$umdf, 
-  n = 540, 
-  replace = T, 
+  bird_data = distance_models$casp$umdf,
+  n = 540,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$casp$cohens_d_n_720 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$casp$umdf, 
-  n = 720, 
-  replace = T, 
+  bird_data = distance_models$casp$umdf,
+  n = 720,
+  replace = T,
   m_scale = m_scale
 )
 # GRRO
@@ -897,30 +918,30 @@ distance_models$grro$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$grro$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$grro$umdf, 
-  n = 154, 
-  replace = T, 
+  bird_data = distance_models$grro$umdf,
+  n = 154,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$grro$cohens_d_n_360 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$grro$umdf, 
-  n = 360, 
-  replace = T, 
+  bird_data = distance_models$grro$umdf,
+  n = 360,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$grro$cohens_d_n_540 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$grro$umdf, 
-  n = 540, 
-  replace = T, 
+  bird_data = distance_models$grro$umdf,
+  n = 540,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$grro$cohens_d_n_720 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$grro$umdf, 
-  n = 720, 
-  replace = T, 
+  bird_data = distance_models$grro$umdf,
+  n = 720,
+  replace = T,
   m_scale = m_scale
 )
 # STFL
@@ -943,30 +964,30 @@ distance_models$stfl$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$stfl$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$stfl$umdf, 
-  n = 154, 
-  replace = T, 
+  bird_data = distance_models$stfl$umdf,
+  n = 154,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$stfl$cohens_d_n_360 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$stfl$umdf, 
-  n = 360, 
-  replace = T, 
+  bird_data = distance_models$stfl$umdf,
+  n = 360,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$stfl$cohens_d_n_540 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$stfl$umdf, 
-  n = 540, 
-  replace = T, 
+  bird_data = distance_models$stfl$umdf,
+  n = 540,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$stfl$cohens_d_n_720 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$stfl$umdf, 
-  n = 720, 
-  replace = T, 
+  bird_data = distance_models$stfl$umdf,
+  n = 720,
+  replace = T,
   m_scale = m_scale
 )
 # SCQU
@@ -989,30 +1010,30 @@ distance_models$scqu$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$scqu$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$scqu$umdf, 
-  n = 154, 
-  replace = T, 
+  bird_data = distance_models$scqu$umdf,
+  n = 154,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$scqu$cohens_d_n_360 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$scqu$umdf, 
-  n = 360, 
-  replace = T, 
+  bird_data = distance_models$scqu$umdf,
+  n = 360,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$scqu$cohens_d_n_540 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$scqu$umdf, 
-  n = 540, 
-  replace = T, 
+  bird_data = distance_models$scqu$umdf,
+  n = 540,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$scqu$cohens_d_n_720 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$scqu$umdf, 
-  n = 720, 
-  replace = T, 
+  bird_data = distance_models$scqu$umdf,
+  n = 720,
+  replace = T,
   m_scale = m_scale
 )
 # LOSH
@@ -1035,29 +1056,29 @@ distance_models$losh$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$losh$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$losh$umdf, 
-  n = 154, 
-  replace = T, 
+  bird_data = distance_models$losh$umdf,
+  n = 154,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$losh$cohens_d_n_360 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$losh$umdf, 
-  n = 360, 
-  replace = T, 
+  bird_data = distance_models$losh$umdf,
+  n = 360,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$losh$cohens_d_n_540 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$losh$umdf, 
-  n = 540, 
-  replace = T, 
+  bird_data = distance_models$losh$umdf,
+  n = 540,
+  replace = T,
   m_scale = m_scale
 )
 distance_models$losh$cohens_d_n_720 <- bs_est_cohens_d_power(
   formula = full_model_formula,
-  bird_data = distance_models$losh$umdf, 
-  n = 720, 
-  replace = T, 
+  bird_data = distance_models$losh$umdf,
+  n = 720,
+  replace = T,
   m_scale = m_scale
 )
