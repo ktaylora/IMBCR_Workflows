@@ -227,7 +227,6 @@ est_residual_mse <- function(m) {
 #' degrees of freedom in a model
 est_residual_sse <- function(m, log=F) {
   if ( inherits(m, "unmarkedFitGDS") ) {
-    df <- length(m@data@y) - est_k_parameters(m)
     # do we want to log-transform our residuals, e.g. for Poisson data?
     if (log) {
       residuals <- log(residuals(m)^2)
@@ -278,15 +277,15 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
 #' estimate McFadden's pseudo r-squared
 est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
   if ( inherits(m, "unmarkedFitGDS") ) {
-    intercept_m <- unmarked::update(m, "~1", mixture=m@mixture)
-    if (grepl(tolower(method), pattern="likelihood")) {
+    intercept_m <- unmarked::update(m, "~1", mixture = m@mixture)
+    if (grepl(tolower(method), pattern = "likelihood")) {
       # this is a k-parameter "adjusted" mcfadden's pseudo r-squared
       r_squared <- 1 - (
         ( abs(m@negLogLike) - est_k_parameters(m) ) /
         ( abs(intercept_m@negLogLike) - est_k_parameters(m) )
       )
     } else if (grepl(tolower(method), pattern="mse")) {
-      intercept_m <- unmarked::update(m, "~1", mixture=m@mixture)
+      intercept_m <- unmarked::update(m, "~1", mixture = m@mixture)
       r_squared <- 1 - ( est_residual_mse(m) / est_residual_mse(intercept_m) )
     }
   } else if ( inherits(m, "glm") ) {
@@ -306,7 +305,7 @@ est_cohens_f_power <- function(m_0=NULL, m_1=NULL, alpha=0.05){
   f_effect_size <-  (r_1 - r_0) / (1 - r_1)
   u <- length(m_0@data@y) - est_k_parameters(m_0) # degrees of freedom for null model
   v <- length(m_1@data@y) - est_k_parameters(m_1) # degrees of freedom for alternative model
-  lambda <- f_effect_size * (u+v+1)
+  lambda <- f_effect_size * (u + v + 1)
   # calling the f-distribution probability density function (1 - beta)
   power <- pf(
     qf(alpha, u, v, lower = FALSE),
@@ -315,7 +314,7 @@ est_cohens_f_power <- function(m_0=NULL, m_1=NULL, alpha=0.05){
     lambda,
     lower = FALSE
   )
-  return(power)
+  return(list(power = power))
 }
 #' a bootstrapped implementation of the Cohen's D test
 bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=147,
@@ -391,7 +390,7 @@ bs_est_pseudo_rsquared <- function(formula=NULL, type="glm", bird_data=NULL,
                                    n=NULL, m_scale=NULL, replace=T) {
     # is this a standard glm?
     if (grepl(tolower(type), pattern = "glm")) {
-      pseudo_r_square_n <- sapply(
+      pseudo_r_squared_n <- sapply(
         X=1:N_BS_REPLICATES,
         FUN=function(i) {
             m <- glm(
@@ -482,7 +481,12 @@ bs_est_chisq_gof_test <- function (formula=NULL, nsim=10) {
     cl=cl,
     X=1:nsim,
     fun=function(i) {
-      ret <- try(unmarked::parboot(m, statistic = function(i) AICcmodavg:::Nmix.chisq(i)$chi.square, nsim = 1, parallel=F))
+      ret <- try(unmarked::parboot(
+        m,
+        statistic = function(i) {
+          AICcmodavg:::Nmix.chisq(i)$chi.square, nsim = 1, parallel = F)
+        }
+      )
       if (class(ret) == "try-error") {
         return(NA)
       } else {
