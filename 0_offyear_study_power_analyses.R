@@ -4,7 +4,7 @@ require(raster)
 require(rgdal)
 require(unmarked)
 
-N_BS_REPLICATES = 999 # number of replicates to use for our bootstrapped operations
+N_BS_REPLICATES = 100 # number of replicates to use for our bootstrapped operations
 
 # load a previous model fitting workspace from Kyle that contains useful
 # data for what we are doing here (units shapefile, m_scale, etc...)
@@ -248,8 +248,8 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
   if ( inherits(m, "glm") ) {
     # R's GLM interface reports standard deviation of residuals by default,
     # this derivation of Cohen's power accomodates SD
-    # note: using the probability mass function for our test
-    m_power <- dnorm( (abs(mean(predict(m)) - 0) / sigma(m) ) *
+    # note: using the probability distribution function for our test
+    m_power <- pnorm( (abs(mean(predict(m)) - 0) / sigma(m) ) *
                        sqrt(m$df.residual) - z_alpha , lower.tail=T)
     m_power <- ifelse( round( m_power, 4) == 0, 1 / m$df.residual,
                            round( m_power, 4) )
@@ -260,8 +260,8 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
     m_power <- colMeans(unmarked::predict(m, type = "lambda")) # lambda, se, ...
     # log-scale our effect and se?
     if (log) m_power <- log(m_power)
-    # note: using the probability mass function for our test
-    m_power <- dnorm( ((m_power[1] - 0) / m_power[2]) - z_alpha , lower.tail=T)
+    # note: using the probability distribution function for our test
+    m_power <- pnorm( ((m_power[1] - 0) / m_power[2]) - z_alpha , lower.tail=T)
     m_power <- ifelse( round( m_power, 4) == 0, 1 / df, round( m_power, 4) )
   }
   if (report) {
@@ -280,10 +280,30 @@ est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
     intercept_m <- unmarked::update(m, "~1", mixture = m@mixture)
     if (grepl(tolower(method), pattern = "likelihood")) {
       # this is a k-parameter "adjusted" mcfadden's pseudo r-squared
-      r_squared <- 1 - (
-        ( abs(m@negLogLike) - est_k_parameters(m) ) /
-        ( abs(intercept_m@negLogLike) - est_k_parameters(intercept_m) )
-      )
+      # sometimes "negLogLik" for the intercept model returned by unmarked
+      # are negative and can't be easily compared with the full model. I 
+      # think this is a bug.
+      if (!(intercept_m@negLogLike < 0 && m@negLogLike > 0)) {
+        warnings("The signs of the negative log-likelihoods for the intercept",
+                 "and alternative models provided do not agree; this is odd.",
+                 "Assuming the absolute value of the intercept model is the",
+                 "true negative log-likelihood. You should double-check the models",
+                 "you are comparing.")
+      }
+      m_k_adj_loglik <- 
+        abs(m@negLogLike) - est_k_parameters(m)
+      intercept_m_k_adj_loglik <- 
+        abs(intercept_m@negLogLike) - est_k_parameters(intercept_m) 
+      # warn user if the loglikelihood of our full model 
+      # is lower for our null model
+      if (intercept_m_k_adj_loglik < m_k_adj_loglik) {
+        warning("the intercept likelihood is lower than the alternative model;",
+                "this shouldn't happen and it suggests that there is no support",
+                "for adding covariates to your model")
+      }
+      # this r-squared estimator is a little more robust than: 
+      # 1 - (AIC(alt)/AIC(intercept)); but captures the same thing
+      r_squared <- (intercept_m_k_adj_loglik - m_k_adj_loglik) / m_k_adj_loglik
     } else if (grepl(tolower(method), pattern="mse")) {
       intercept_m <- unmarked::update(m, "~1", mixture = m@mixture)
       r_squared <- 1 - ( est_residual_mse(m) / est_residual_mse(intercept_m) )
@@ -317,7 +337,7 @@ est_cohens_f_power <- function(m_0=NULL, m_1=NULL, alpha=0.05){
   return(list(power = power))
 }
 #' a bootstrapped implementation of the Cohen's D test
-bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=147,
+bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=154,
                                   replace=T, m_scale=NULL, type="gdistsamp") {
   # is this a standard glm?
   if (grepl(tolower(type), pattern = "glm")) {
@@ -675,7 +695,7 @@ full_model_formula <- as.character(formula(m_pois_grsp_w_shrub_covs))[[3]]
 # GRSP
 distance_models$grsp$full_model <- fit_gdistsamp(
   lambdas=full_model_formula,
-  umdf=distance_models$weme$umdf,
+  umdf=distance_models$grsp$umdf,
   mixture="NB"
 )
 distance_models$grsp$intercept_model <- unmarked::update(
@@ -687,6 +707,7 @@ distance_models$grsp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula = full_model_formula,
   bird_data = distance_models$grsp$umdf,
   n = 154,
+  replace = F,
   m_scale = m_scale,
   type = "gdistsamp"
 )
@@ -720,7 +741,7 @@ distance_models$grsp$cohens_d_n_720 <- bs_est_cohens_d_power(
 )
 # WEME
 distance_models$weme$full_model <- fit_gdistsamp(
-  lambdas=as.character(full_model_formula)[[3]],
+  lambdas=full_model_formula,
   umdf=distance_models$weme$umdf,
   mixture="NB"
 )
@@ -730,11 +751,12 @@ distance_models$weme$intercept_model <- unmarked::update(
   mixture="NB"
 )
 distance_models$weme$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula=full_model_formula,
-  bird_data=distance_models$weme$umdf,
-  n=154,
-  m_scale=m_scale,
-  type="gdistsamp"
+  formula = full_model_formula,
+  bird_data = distance_models$weme$umdf,
+  n = 154,
+  replace = F,
+  m_scale = m_scale,
+  type = "gdistsamp"
 )
 distance_models$weme$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
@@ -766,7 +788,7 @@ distance_models$weme$cohens_d_n_720 <- bs_est_cohens_d_power(
 )
 # NOBO
 distance_models$nobo$full_model <- fit_gdistsamp(
-  lambdas=as.character(full_model_formula)[[3]],
+  lambdas=full_model_formula,
   umdf=distance_models$nobo$umdf,
   mixture="NB"
 )
@@ -776,11 +798,12 @@ distance_models$nobo$intercept_model <- unmarked::update(
   mixture="NB"
 )
 distance_models$nobo$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula=full_model_formula,
-  bird_data=distance_models$nobo$umdf@siteCovs,
-  n=154,
-  m_scale=m_scale,
-  type="gdistsamp"
+  formula = full_model_formula,
+  bird_data = distance_models$nobo$umdf,
+  n = 154,
+  replace = F,
+  m_scale = m_scale,
+  type = "gdistsamp"
 )
 distance_models$nobo$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
@@ -823,8 +846,9 @@ distance_models$hola$intercept_model <- unmarked::update(
 )
 distance_models$hola$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula=full_model_formula,
-  bird_data=distance_models$hola$umdf@siteCovs,
+  bird_data=distance_models$hola$umdf,
   n=154,
+  replace = F,
   m_scale=m_scale,
   type="gdistsamp"
 )
@@ -868,11 +892,12 @@ distance_models$casp$intercept_model <- unmarked::update(
   mixture="NB"
 )
 distance_models$casp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula=full_model_formula,
-  bird_data=distance_models$casp$umdf@siteCovs,
-  n=154,
-  m_scale=m_scale,
-  type="gdistsamp"
+  formula = full_model_formula,
+  bird_data = distance_models$casp$umdf,
+  replace = F,
+  n = 154,
+  m_scale = m_scale,
+  type = "gdistsamp"
 )
 distance_models$casp$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
@@ -914,11 +939,12 @@ distance_models$grro$intercept_model <- unmarked::update(
   mixture="NB"
 )
 distance_models$grro$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula=full_model_formula,
-  bird_data=distance_models$grro$umdf@siteCovs,
-  n=154,
-  m_scale=m_scale,
-  type="gdistsamp"
+  formula = full_model_formula,
+  bird_data = distance_models$grro$umdf,
+  n = 154,
+  replace = F,
+  m_scale = m_scale,
+  type = "gdistsamp"
 )
 distance_models$grro$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
@@ -960,11 +986,12 @@ distance_models$stfl$intercept_model <- unmarked::update(
   mixture="NB"
 )
 distance_models$stfl$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula=full_model_formula,
-  bird_data=distance_models$stfl$umdf@siteCovs,
-  n=154,
-  m_scale=m_scale,
-  type="gdistsamp"
+  formula = full_model_formula,
+  bird_data = distance_models$stfl$umdf@siteCovs,
+  n = 154,
+  replace = F,
+  m_scale = m_scale,
+  type = "gdistsamp"
 )
 distance_models$stfl$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
@@ -1007,8 +1034,9 @@ distance_models$scqu$intercept_model <- unmarked::update(
 )
 distance_models$scqu$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula=full_model_formula,
-  bird_data=distance_models$scqu$umdf@siteCovs,
-  n=154,
+  bird_data=distance_models$scqu$umdf,
+  n = 154,
+  replace = F,
   m_scale=m_scale,
   type="gdistsamp"
 )
@@ -1053,8 +1081,9 @@ distance_models$losh$intercept_model <- unmarked::update(
 )
 distance_models$losh$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula=full_model_formula,
-  bird_data=distance_models$losh$umdf@siteCovs,
+  bird_data=distance_models$losh$umdf,
   n=154,
+  replace = F,
   m_scale=m_scale,
   type="gdistsamp"
 )
