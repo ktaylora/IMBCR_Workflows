@@ -4,7 +4,7 @@ require(raster)
 require(rgdal)
 require(unmarked)
 
-N_BS_REPLICATES = 100 # number of replicates to use for our bootstrapped operations
+N_BS_REPLICATES = 200 # number of replicates to use for our bootstrapped operations
 
 # load a previous model fitting workspace from Kyle that contains useful
 # data for what we are doing here (units shapefile, m_scale, etc...)
@@ -242,6 +242,7 @@ est_residual_sse <- function(m, log=F) {
 }
 #' estimate power from the effect (mean - 0) and residual error of a model
 #' using Cohen's D statistic
+#' @export
 est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
   m_power <- NA
   z_alpha <- round( (1 - alpha)*2.06, 2 )
@@ -249,10 +250,11 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
     # R's GLM interface reports standard deviation of residuals by default,
     # this derivation of Cohen's power accomodates SD
     # note: using the probability distribution function for our test
+    # this is: probability of obtaining a value < Z_mean(pred-0) - 1.96
     m_power <- pnorm( (abs(mean(predict(m)) - 0) / sigma(m) ) *
-                       sqrt(m$df.residual) - z_alpha , lower.tail=T)
+                       sqrt(m$df.residual) - z_alpha , lower.tail = T)
     m_power <- ifelse( round( m_power, 4) == 0, 1 / m$df.residual,
-                           round( m_power, 4) )
+                       round( m_power, 4) )
   } else if ( inherits(m, "unmarkedFitGDS") ) {
     # unmarked's HDS interface reports standard error of residuals by default,
     # by way of the Hessian. This derivation of Cohen's power accomodates SE
@@ -261,7 +263,8 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
     # log-scale our effect and se?
     if (log) m_power <- log(m_power)
     # note: using the probability distribution function for our test
-    m_power <- pnorm( ((m_power[1] - 0) / m_power[2]) - z_alpha , lower.tail=T)
+    # this is: probability of obtaining a value < Z_mean(pred-0) - 1.96
+    m_power <- pnorm( ((m_power[1] - 0) / m_power[2]) - z_alpha , lower.tail = T)
     m_power <- ifelse( round( m_power, 4) == 0, 1 / df, round( m_power, 4) )
   }
   if (report) {
@@ -275,6 +278,13 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
   return(list(power = as.vector(m_power)))
 }
 #' estimate McFadden's pseudo r-squared
+#' Note that this function will work with model objects fit with glm() in 'R', 
+#' but is primarily intended to work with model objects fit using the 'unmarked'
+#' R package. There is some fairly-involved exception handling that has gone
+#' into working with AIC and negative log-likelihood values reported by
+#' unmarked that should give you pause. I try to be as verbose as I can
+#' with warnings when I fudge numbers reported by unmarked models.
+#' @export
 est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
   if ( inherits(m, "unmarkedFitGDS") ) {
     intercept_m <- unmarked::update(
@@ -290,30 +300,38 @@ est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
       # are negative and can't be easily compared with the full model. I 
       # think this is a bug.
       if (intercept_m@negLogLike < 0 && m@negLogLike > 0) {
-        warnings(paste(c("The signs of the negative log-likelihoods for the intercept",
-                 "and alternative models provided do not agree; this is odd.",
-                 "Assuming the absolute value of the intercept model is the",
-                 "true negative log-likelihood. You should double-check the models",
-                 "you are comparing."), collapse = " "))
-      } else if(intercept_m@negLogLike < 0 && m@negLogLike < 0) {
+        warnings(paste(c("The signs of the negative log-likelihoods for the",
+                 "intercept and alternative models provided do not agree;", 
+                 "this is odd. Assuming the absolute value of the intercept",
+                 "model is the true negative log-likelihood. You should",
+                 "double-check the models you are comparing."), collapse = " ")
+        )
+      } else if (intercept_m@negLogLike < 0 && m@negLogLike < 0) {
         ADJ_LOGLIKE_CONST <- 2*abs(intercept_m@negLogLike)
         intercept_m@negLogLike <- intercept_m@negLogLike + ADJ_LOGLIKE_CONST
         m@negLogLike <- m@negLogLike + ADJ_LOGLIKE_CONST
       }
       # sanity-check : is the AIC of our null model lower than our alternative?
       # this suggests no support for our alternative model
-      if(OpenIMBCR:::AICc(intercept_m) < OpenIMBCR:::AICc(m)){
-       warning(paste(c("The intercept model has a lower AIC than the proposed alternative",
-               "model. This shouldn't happen. Assuming the intercept model's negative",
-               "log likelihood is an absolute value. Please review the model objects"),
-               collapse = " "))
+      if (OpenIMBCR:::AICc(intercept_m) < OpenIMBCR:::AICc(m)) {
+       warning(paste(c("The intercept model has a lower AIC than the proposed",
+                       "alternative model. This shouldn't happen. Assuming the",
+                       "intercept model's negative log-likelihood is an",
+                       "absolute value and that unmarked made a mistake",
+                       "in it's reporting. Please review the model objects", 
+                       "to double check that these changes make sense."),
+               collapse = " ")
+       )
        if (intercept_m@negLogLike < 0) {
          intercept_m@negLogLike <- abs(intercept_m@negLogLike)
        } else {
          warning(paste(c("There's no evidence that the negative",
-                         "loglikeihood value is wrong, even though",
-                         "the intercept AIC is lower than the alternative",
-                         "model's AIC -- returning 0"), sep= " "))
+                         "loglikeihood value of our alternative model is",
+                         "wrong, and the intercept AIC is lower than",
+                         "the alternative model's AIC -- assuming no support",
+                         "for explaining residual error and returning 0"), 
+                       sep = " ")
+         )
          return(0.00)
        }
       }
@@ -332,7 +350,13 @@ est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
       # 1 - (AIC(alt)/AIC(intercept)); but captures the same thing
       r_squared <- (intercept_m_k_adj_loglik - m_k_adj_loglik) / m_k_adj_loglik
     } else if (grepl(tolower(method), pattern = "mse")) {
-      intercept_m <- unmarked::update(m, "~1", mixture = m@mixture)
+      intercept_m <- unmarked::update(
+        m, 
+        "~1+offset(log(effort))",
+        "~1",
+        "~1", 
+        mixture = m@mixture
+      )
       r_squared <- 1 - ( est_residual_mse(m) / est_residual_mse(intercept_m) )
     }
   } else if ( inherits(m, "glm") ) {
