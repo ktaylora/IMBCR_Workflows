@@ -270,25 +270,52 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
     cat(" ######################################################\n")
     cat("  -- 1-beta (power) :", round(m_power, 4) ,"\n")
     cat("  -- significantly different than zero? :",
-        as.character( m_power > (1-alpha) ), "\n")
+        as.character( m_power > (1 - alpha) ), "\n")
   }
   return(list(power = as.vector(m_power)))
 }
 #' estimate McFadden's pseudo r-squared
 est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
   if ( inherits(m, "unmarkedFitGDS") ) {
-    intercept_m <- unmarked::update(m, "~1", mixture = m@mixture)
+    intercept_m <- unmarked::update(
+      m,
+      "~1+offset(log(effort))",
+      "~1",
+      "~1",
+      mixture=m@mixture
+    )
     if (grepl(tolower(method), pattern = "likelihood")) {
       # this is a k-parameter "adjusted" mcfadden's pseudo r-squared
       # sometimes "negLogLik" for the intercept model returned by unmarked
       # are negative and can't be easily compared with the full model. I 
       # think this is a bug.
-      if (!(intercept_m@negLogLike < 0 && m@negLogLike > 0)) {
-        warnings("The signs of the negative log-likelihoods for the intercept",
+      if (intercept_m@negLogLike < 0 && m@negLogLike > 0) {
+        warnings(paste(c("The signs of the negative log-likelihoods for the intercept",
                  "and alternative models provided do not agree; this is odd.",
                  "Assuming the absolute value of the intercept model is the",
                  "true negative log-likelihood. You should double-check the models",
-                 "you are comparing.")
+                 "you are comparing."), collapse = " "))
+      } else if(intercept_m@negLogLike < 0 && m@negLogLike < 0) {
+        ADJ_LOGLIKE_CONST <- 2*abs(intercept_m@negLogLike)
+        intercept_m@negLogLike <- intercept_m@negLogLike + ADJ_LOGLIKE_CONST
+        m@negLogLike <- m@negLogLike + ADJ_LOGLIKE_CONST
+      }
+      # sanity-check : is the AIC of our null model lower than our alternative?
+      # this suggests no support for our alternative model
+      if(OpenIMBCR:::AICc(intercept_m) < OpenIMBCR:::AICc(m)){
+       warning(paste(c("The intercept model has a lower AIC than the proposed alternative",
+               "model. This shouldn't happen. Assuming the intercept model's negative",
+               "log likelihood is an absolute value. Please review the model objects"),
+               collapse = " "))
+       if (intercept_m@negLogLike < 0) {
+         intercept_m@negLogLike <- abs(intercept_m@negLogLike)
+       } else {
+         warning(paste(c("There's no evidence that the negative",
+                         "loglikeihood value is wrong, even though",
+                         "the intercept AIC is lower than the alternative",
+                         "model's AIC -- returning 0"), sep= " "))
+         return(0.00)
+       }
       }
       m_k_adj_loglik <- 
         abs(m@negLogLike) - est_k_parameters(m)
@@ -297,14 +324,14 @@ est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
       # warn user if the loglikelihood of our full model 
       # is lower for our null model
       if (intercept_m_k_adj_loglik < m_k_adj_loglik) {
-        warning("the intercept likelihood is lower than the alternative model;",
+        warning(c("the intercept likelihood is lower than the alternative model;",
                 "this shouldn't happen and it suggests that there is no support",
-                "for adding covariates to your model")
+                "for adding covariates to your model"))
       }
       # this r-squared estimator is a little more robust than: 
       # 1 - (AIC(alt)/AIC(intercept)); but captures the same thing
       r_squared <- (intercept_m_k_adj_loglik - m_k_adj_loglik) / m_k_adj_loglik
-    } else if (grepl(tolower(method), pattern="mse")) {
+    } else if (grepl(tolower(method), pattern = "mse")) {
       intercept_m <- unmarked::update(m, "~1", mixture = m@mixture)
       r_squared <- 1 - ( est_residual_mse(m) / est_residual_mse(intercept_m) )
     }
@@ -486,61 +513,61 @@ bs_est_pseudo_rsquared <- function(formula=NULL, type="glm", bird_data=NULL,
 }
 #' A boot strapped implementation of pearson's chi square "Goodness of Fit" test
 #' stolen in part from the AICcmodavg package, which has a broken implementation
-bs_est_chisq_gof_test <- function (formula=NULL, nsim=10) {
-  require(parallel)
-
-  m <-
-    #gof <- Nmix.gof.test(mod=m, nsim=600, plot.hist=F)
-    model.type <- AICcmodavg:::Nmix.chisq(m)$model.type
-
-  cl <- parallel::makeCluster(parallel::detectCores()-1)
-
-  parallel::clusterExport(cl, varlist=c("nsim","umdf","m"))
-
-  bs <- parallel::parLapply(
-    cl=cl,
-    X=1:nsim,
-    fun=function(i) {
-      ret <- try(unmarked::parboot(
-        m,
-        statistic = function(i) {
-          AICcmodavg:::Nmix.chisq(i)$chi.square, nsim = 1, parallel = F)
-        }
-      )
-      if (class(ret) == "try-error") {
-        return(NA)
-      } else {
-        return(list(t0=as.vector(ret@t0), t.star=as.vector(ret@t.star)))
-      }
-    })
-
-  t.star <- unlist(bs) [ which(names(unlist(bs)) == "t.star") ]
-  t0 <- unlist(bs) [ which(names(unlist(bs)) == "t0") ]
-
-  nsim <- length(t.star) # update our nsim to account for any failures
-
-  p.value <- sum(t.star >= t0) / nsim
-
-  if (p.value == 0) {
-    p.display <- paste("<", round(1/length(t.star), 5))
-  } else {
-    p.display = paste("=", round(p.value, digits = 4))
-  }
-
-  if (plot.hist) {
-    hist(out@t.star, main = as.expression(substitute("Bootstrapped "*chi^2*" fit statistic ("*nsim*" samples)",
-                                                     list(nsim = nsim))),
-         xlim = range(c(out@t.star, out@t0)), xlab = paste("Simulated statistic ", "(observed = ", round(out@t0, digits = 2), ")", sep = ""))
-    title(main = bquote(paste(italic(P), .(p.display))), line = 0.5)
-    abline(v = out@t0, lty = "dashed", col = "red")
-  }
-  # estimate our dispersion parameter
-  c.hat.est <- t0/mean(t.star)
-
-  gof.out <- list(model.type = model.type, chi.square = mean(t0), t.star = mean(t.star), p.value = p.display, c.hat.est = mean(c.hat.est), nsim = nsim)
-
-  return(gof.out)
-}
+# bs_est_chisq_gof_test <- function (formula=NULL, nsim=10) {
+#   require(parallel)
+# 
+#   m <-
+#     #gof <- Nmix.gof.test(mod=m, nsim=600, plot.hist=F)
+#     model.type <- AICcmodavg:::Nmix.chisq(m)$model.type
+# 
+#   cl <- parallel::makeCluster(parallel::detectCores()-1)
+# 
+#   parallel::clusterExport(cl, varlist=c("nsim","umdf","m"))
+# 
+#   bs <- parallel::parLapply(
+#     cl=cl,
+#     X=1:nsim,
+#     fun=function(i) {
+#       ret <- try(unmarked::parboot(
+#         m,
+#         statistic = function(i) {
+#           AICcmodavg:::Nmix.chisq(i)$chi.square, nsim = 1, parallel = F)
+#         }
+#       )
+#       if (class(ret) == "try-error") {
+#         return(NA)
+#       } else {
+#         return(list(t0=as.vector(ret@t0), t.star=as.vector(ret@t.star)))
+#       }
+#     })
+# 
+#   t.star <- unlist(bs) [ which(names(unlist(bs)) == "t.star") ]
+#   t0 <- unlist(bs) [ which(names(unlist(bs)) == "t0") ]
+# 
+#   nsim <- length(t.star) # update our nsim to account for any failures
+# 
+#   p.value <- sum(t.star >= t0) / nsim
+# 
+#   if (p.value == 0) {
+#     p.display <- paste("<", round(1/length(t.star), 5))
+#   } else {
+#     p.display = paste("=", round(p.value, digits = 4))
+#   }
+# 
+#   if (plot.hist) {
+#     hist(out@t.star, main = as.expression(substitute("Bootstrapped "*chi^2*" fit statistic ("*nsim*" samples)",
+#                                                      list(nsim = nsim))),
+#          xlim = range(c(out@t.star, out@t0)), xlab = paste("Simulated statistic ", "(observed = ", round(out@t0, digits = 2), ")", sep = ""))
+#     title(main = bquote(paste(italic(P), .(p.display))), line = 0.5)
+#     abline(v = out@t0, lty = "dashed", col = "red")
+#   }
+#   # estimate our dispersion parameter
+#   c.hat.est <- t0/mean(t.star)
+# 
+#   gof.out <- list(model.type = model.type, chi.square = mean(t0), t.star = mean(t.star), p.value = p.display, c.hat.est = mean(c.hat.est), nsim = nsim)
+# 
+#   return(gof.out)
+# }
 
 #
 # MAIN WORKFLOW
@@ -691,17 +718,27 @@ distance_models$losh <- list(umdf=build_umdf_for_spp(
 #
 # fit some HDS model in unmarked
 #
-full_model_formula <- as.character(formula(m_pois_grsp_w_shrub_covs))[[3]]
+
 # GRSP
+full_model_formula <- paste(
+  c("poly(crp_ar, 1, raw = T) + poly(grass_ar, 1, raw = T) +", 
+    "poly(shrub_ar, 1, raw = T) + poly(pat_ct, 1, raw = T) +",
+    "poly(mean_me_sh, 1, raw=T) + poly(mean_me_o, 1, raw=T) +",
+    "poly(mean_ju_sh, 1, raw=T) + poly(mean_ju_o, 1, raw=T) +",
+    "offset(log(effort))"), 
+  collapse = ""
+)
 distance_models$grsp$full_model <- fit_gdistsamp(
-  lambdas=full_model_formula,
-  umdf=distance_models$grsp$umdf,
-  mixture="NB"
+  lambdas = full_model_formula,
+  umdf = distance_models$grsp$umdf,
+  mixture = "NB"
 )
 distance_models$grsp$intercept_model <- unmarked::update(
   distance_models$grsp$full_model,
+  "~1+offset(log(effort))",
   "~1",
-  mixture="NB"
+  "~1",
+  mixture = "NB"
 )
 distance_models$grsp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula = full_model_formula,
@@ -834,23 +871,33 @@ distance_models$nobo$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 # HOLA
+full_model_formula <- paste(
+  c("poly(crp_ar, 1, raw = T) + poly(grass_ar, 1, raw = T) +", 
+    "poly(shrub_ar, 1, raw = T) + poly(pat_ct, 1, raw = T) +",
+    "poly(mean_me_sh, 1, raw=T) + poly(mean_me_o, 1, raw=T) +",
+    "poly(mean_ju_sh, 1, raw=T) + poly(mean_ju_o, 1, raw=T) +",
+    "offset(log(effort))"), 
+  collapse = ""
+  )
 distance_models$hola$full_model <- fit_gdistsamp(
-  lambdas=as.character(full_model_formula)[[3]],
+  lambdas=full_model_formula,
   umdf=distance_models$hola$umdf,
   mixture="NB"
 )
 distance_models$hola$intercept_model <- unmarked::update(
   distance_models$hola$full_model,
+  "~1+offset(log(effort))",
+  "~1",
   "~1",
   mixture="NB"
 )
 distance_models$hola$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula=full_model_formula,
-  bird_data=distance_models$hola$umdf,
-  n=154,
+  formula = full_model_formula,
+  bird_data = distance_models$hola$umdf,
+  n = 154,
   replace = F,
-  m_scale=m_scale,
-  type="gdistsamp"
+  m_scale = m_scale,
+  type = "gdistsamp"
 )
 distance_models$hola$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
@@ -888,6 +935,8 @@ distance_models$casp$full_model <- fit_gdistsamp(
 )
 distance_models$casp$intercept_model <- unmarked::update(
   distance_models$casp$full_model,
+  "~1+offset(log(effort))",
+  "~1",
   "~1",
   mixture="NB"
 )
@@ -935,6 +984,8 @@ distance_models$grro$full_model <- fit_gdistsamp(
 )
 distance_models$grro$intercept_model <- unmarked::update(
   distance_models$grro$full_model,
+  "~1+offset(log(effort))",
+  "~1",
   "~1",
   mixture="NB"
 )
@@ -982,10 +1033,11 @@ distance_models$stfl$full_model <- fit_gdistsamp(
 )
 distance_models$stfl$intercept_model <- unmarked::update(
   distance_models$stfl$full_model,
+  "~1+offset(log(effort))",
+  "~1",
   "~1",
   mixture="NB"
-)
-distance_models$stfl$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
+)odels$stfl$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula = full_model_formula,
   bird_data = distance_models$stfl$umdf@siteCovs,
   n = 154,
@@ -1029,6 +1081,8 @@ distance_models$scqu$full_model <- fit_gdistsamp(
 )
 distance_models$scqu$intercept_model <- unmarked::update(
   distance_models$scqu$full_model,
+  "~1+offset(log(effort))",
+  "~1",
   "~1",
   mixture="NB"
 )
@@ -1076,6 +1130,8 @@ distance_models$losh$full_model <- fit_gdistsamp(
 )
 distance_models$losh$intercept_model <- unmarked::update(
   distance_models$losh$full_model,
+  "~1+offset(log(effort))",
+  "~1",
   "~1",
   mixture="NB"
 )
