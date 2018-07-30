@@ -250,8 +250,8 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
     # this derivation of Cohen's power accomodates SD
     # note: using the probability mass function for our test
     m_power <- dnorm( (abs(mean(predict(m)) - 0) / sigma(m) ) *
-                       sqrt(m$df.residual) - z_alpha )
-    m_power <- 1 - ifelse( round( m_power, 4) == 0, 1 / m$df.residual,
+                       sqrt(m$df.residual) - z_alpha , lower.tail=T)
+    m_power <- ifelse( round( m_power, 4) == 0, 1 / m$df.residual,
                            round( m_power, 4) )
   } else if ( inherits(m, "unmarkedFitGDS") ) {
     # unmarked's HDS interface reports standard error of residuals by default,
@@ -261,8 +261,8 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
     # log-scale our effect and se?
     if (log) m_power <- log(m_power)
     # note: using the probability mass function for our test
-    m_power <- dnorm( ((m_power[1] - 0) / m_power[2]) - z_alpha )
-    m_power <- 1 -  ifelse( round( m_power, 4) == 0, 1 / df, round( m_power, 4) )
+    m_power <- dnorm( ((m_power[1] - 0) / m_power[2]) - z_alpha , lower.tail=T)
+    m_power <- ifelse( round( m_power, 4) == 0, 1 / df, round( m_power, 4) )
   }
   if (report) {
     cat(" ######################################################\n")
@@ -282,7 +282,7 @@ est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
       # this is a k-parameter "adjusted" mcfadden's pseudo r-squared
       r_squared <- 1 - (
         ( abs(m@negLogLike) - est_k_parameters(m) ) /
-        ( abs(intercept_m@negLogLike) - est_k_parameters(m) )
+        ( abs(intercept_m@negLogLike) - est_k_parameters(intercept_m) )
       )
     } else if (grepl(tolower(method), pattern="mse")) {
       intercept_m <- unmarked::update(m, "~1", mixture = m@mixture)
