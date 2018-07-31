@@ -14,7 +14,7 @@ load("/global_workspace/iplan_models/stable/weme_imbcr_hds_negbin_workflow_feb_1
 # LOCAL FUNCTIONS FOR POWER ANALYSES AND RELATED TASKS
 #
 
-#' shorthand function will reverse a scale() operation on a scaled data.frame,
+#' hidden shorthand function will reverse a scale() operation on a scaled data.frame,
 #' using a previously-fit m_scale scale() object
 backscale_var <- function(var=NULL, df=NULL, m_scale=NULL) {
   return(
@@ -23,7 +23,7 @@ backscale_var <- function(var=NULL, df=NULL, m_scale=NULL) {
       attr(m_scale, 'scaled:center')[var]
     )
 }
-#' shorthand function that will call gdistsamp with a user-specified
+#' hidden shorthand function that will call gdistsamp with a user-specified
 #' unmarked data.frame
 fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="NB") {
   if (length(lambdas) > 1) {
@@ -73,8 +73,8 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="NB") {
     }
   }
 }
-#' build an unmarked data.frame (umdf) for fitting a distsamp model from
-#' a matrix of 1-km2 site covariates
+#' hidden shorthand function that will build an unmarked data.frame (umdf)
+#' for fitting a distsamp model from a matrix of 1-km2 site covariates
 build_umdf_for_spp <- function(
   path="/global_workspace/imbcr_number_crunching/results/RawData_PLJV_IMBCR_20171017.csv",
   four_letter_code=NULL,
@@ -134,6 +134,7 @@ build_umdf_for_spp <- function(
 #' downsample MEsquite and JUniper transects using their joint percent-cover
 #' estimate -- this will balance our zero shrub transects with our non-zero
 #' shrub transects
+#' @export
 downsample_transects_by <- function(bird_data=NULL, by="mean", m_scale=NULL,
                                     inflation_threshold=1.1) {
   # back-scale if needed
@@ -161,6 +162,7 @@ downsample_transects_by <- function(bird_data=NULL, by="mean", m_scale=NULL,
 #' estimate standard residual error from standard deviation using
 #' an estimator that can account for the degrees of freedom used in
 #' our model
+#' @export
 est_residual_sd <- function(m=NULL, log=F) {
   return(
       sqrt(
@@ -170,11 +172,18 @@ est_residual_sd <- function(m=NULL, log=F) {
   )
 }
 #' a robust estimator of residual standard error that can account for
-#' degrees of freedom in a model
+#' degrees of freedom in a generalized linear model. Unmarked calculates
+#' standard error directly (using the hessian matrix), so this is only
+#' really applicable to a generalized linear model
+#' @export
 est_residual_se <- function(m=NULL) {
-  # A robust SE estimator that takes into account df
-  # (still assumes error and sd are proportional and normal)
-  return( est_residual_sd(m, log = F) / sqrt( m$df.residual ) ) # SD -> SE
+  if ( inherits(m, "glm") ) {
+    # A robust SE estimator that takes into account df
+    # (still assumes error and sd are proportional and normal)
+    return( est_residual_sd(m, log = F) / sqrt( m$df.residual ) ) # SD -> SE
+  } else {
+    return(NA)
+  }
 }
 #' estimate the number of parameters used in a model
 est_k_parameters <- function(m=NULL) {
@@ -247,7 +256,7 @@ est_residual_sse <- function(m, log=F) {
   }
 }
 #' estimate power from the effect (mean - 0) and residual error of a model
-#' using Cohen's D statistic
+#' using Cohen's (1988) D test statistic
 #' @export
 est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
   m_power <- NA
@@ -395,6 +404,7 @@ est_cohens_f_power <- function(m_0=NULL, m_1=NULL, alpha=0.05)
   return(list(power = power))
 }
 #' bs_est_cohens_f_power
+#' a bootstrapped implementation of the Cohens (1988) f-squared test
 bs_est_cohens_f_power <- function(
   m_0_formula=NULL,
   m_1_formula=NULL,
@@ -482,7 +492,7 @@ bs_est_cohens_f_power <- function(
     return(round(mean(cohens_f_n, na.rm = T), 2))
   }
 }
-#' a bootstrapped implementation of the Cohen's D test
+#' a bootstrapped implementation of the Cohen's (1988) D test
 bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=154,
                                   replace=T, m_scale=NULL, type="gdistsamp") {
   # is this a standard glm?
@@ -561,7 +571,7 @@ bs_est_pseudo_rsquared <- function(
   n=NULL,
   m_scale=NULL,
   replace=T,
-  method="likelihood"
+  method="mse"
   ) {
     # is this a standard glm?
     if (grepl(tolower(type), pattern = "glm")) {
@@ -628,7 +638,7 @@ bs_est_pseudo_rsquared <- function(
             if (class(m) == "try-error") {
               return(NA)
             } else {
-              return(est_pseudo_rsquared(m, method=method))
+              return(est_pseudo_rsquared(m, method = method))
             }
         }
       ))
