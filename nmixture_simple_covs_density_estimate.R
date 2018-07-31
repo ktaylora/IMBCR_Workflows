@@ -258,6 +258,17 @@ std_errors <- c(
   )
 
 
+aic <- mean(c(
+    ifelse(class(m_pois_intercept_model) == "try-error", NA, m_pois_intercept_model@AIC),
+    ifelse(class(m_pois_alternative_model_simple) == "try-error", NA, m_pois_alternative_model_simple@AIC), 
+    ifelse(class(m_pois_alternative_model_complex) == "try-error", NA, m_pois_alternative_model_complex@AIC), 
+    ifelse(class(m_negbin_intercept_model) == "try-error", NA, m_negbin_intercept_model@AIC), 
+    ifelse(class(m_negbin_alternative_model_simple) == "try-error", NA, m_negbin_alternative_model_simple@AIC), 
+    ifelse(class(m_negbin_alternative_model_complex) == "try-error", NA, m_negbin_alternative_model_complex@AIC)
+  ),
+  na.rm=T
+)
+
 weights <- OpenIMBCR:::akaike_weights(
   aic_values=c(
     ifelse(class(m_pois_intercept_model) == "try-error", 0, m_pois_intercept_model@AIC),
@@ -273,4 +284,4 @@ weights <- OpenIMBCR:::akaike_weights(
 density_ensemble <- weighted.mean(densities, weights=weights, na.rm=T)
 se_ensemble <- weighted.mean(std_errors, weights=weights, na.rm=T)
 
-print(data.frame(spp=argv[1], density=density_ensemble, se=se_ensemble))
+print(data.frame(spp=argv[1], density=density_ensemble, se=se_ensemble, aic=aic))
