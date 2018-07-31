@@ -212,10 +212,16 @@ est_deviance_from_likelihood <- function(m=NULL) {
 }
 #' a robust estimator for residual sum-of-square error that can account for
 #' degrees of freedom in a model
-est_residual_mse <- function(m) {
+est_residual_mse <- function(m, log=T) {
   if ( inherits(m, "unmarkedFitGDS") ) {
     df <- length(m@data@y) - est_k_parameters(m)
-    sum_sq_resid_err <- sum(colSums(residuals(m)^2), na.rm = T)
+    if (log) {
+      residuals <- log(residuals(m)^2)
+      residuals[is.infinite(residuals)] <- 0
+    } else {
+      residuals <- residuals(m)^2
+    }
+    sum_sq_resid_err <- sum(colSums(residuals), na.rm = T)
     # Mean Sum of Squares Error
     sum_sq_resid_mse <- sum_sq_resid_err / df
     return(sum_sq_resid_mse)
@@ -278,7 +284,7 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
   return(list(power = as.vector(m_power)))
 }
 #' estimate McFadden's pseudo r-squared
-#' Note that this function will work with model objects fit with glm() in 'R', 
+#' Note that this function will work with model objects fit with glm() in 'R',
 #' but is primarily intended to work with model objects fit using the 'unmarked'
 #' R package. There is some fairly-involved exception handling that has gone
 #' into working with AIC and negative log-likelihood values reported by
@@ -292,19 +298,19 @@ est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
       "~1+offset(log(effort))",
       "~1",
       "~1",
-      mixture=m@mixture
+      mixture = m@mixture
     )
     if (grepl(tolower(method), pattern = "likelihood")) {
       # this is a k-parameter "adjusted" mcfadden's pseudo r-squared
       # sometimes "negLogLik" for the intercept model returned by unmarked
-      # are negative and can't be easily compared with the full model. I 
+      # are negative and can't be easily compared with the full model. I
       # think this is a bug.
       if (intercept_m@negLogLike < 0 && m@negLogLike > 0) {
         warnings(paste(c("The signs of the negative log-likelihoods for the",
-                 "intercept and alternative models provided do not agree;", 
+                 "intercept and alternative models provided do not agree;",
                  "this is odd. Assuming the absolute value of the intercept",
-                 "model is the true negative log-likelihood. You should",
-                 "double-check the models you are comparing."), collapse = " ")
+                 "model is the true negative log-likelihood. Please ",
+                 "review the models you are comparing."), collapse = " ")
         )
       } else if (intercept_m@negLogLike < 0 && m@negLogLike < 0) {
         ADJ_LOGLIKE_CONST <- 2*abs(intercept_m@negLogLike)
@@ -318,7 +324,7 @@ est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
                        "alternative model. This shouldn't happen. Assuming the",
                        "intercept model's negative log-likelihood is an",
                        "absolute value and that unmarked made a mistake",
-                       "in it's reporting. Please review the model objects", 
+                       "in it's reporting. Please review the model objects",
                        "to double check that these changes make sense."),
                collapse = " ")
        )
@@ -326,38 +332,38 @@ est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
          intercept_m@negLogLike <- abs(intercept_m@negLogLike)
        } else {
          warning(paste(c("There's no evidence that the negative",
-                         "loglikeihood value of our alternative model is",
+                         "log-likeihood value of our alternative model is",
                          "wrong, and the intercept AIC is lower than",
                          "the alternative model's AIC -- assuming no support",
-                         "for explaining residual error and returning 0"), 
+                         "for explaining residual error and returning 0"),
                        sep = " ")
          )
          return(0.00)
        }
       }
-      m_k_adj_loglik <- 
+      m_k_adj_loglik <-
         abs(m@negLogLike) - est_k_parameters(m)
-      intercept_m_k_adj_loglik <- 
-        abs(intercept_m@negLogLike) - est_k_parameters(intercept_m) 
-      # warn user if the loglikelihood of our full model 
+      intercept_m_k_adj_loglik <-
+        abs(intercept_m@negLogLike) - est_k_parameters(intercept_m)
+      # warn user if the loglikelihood of our full model
       # is lower for our null model
       if (intercept_m_k_adj_loglik < m_k_adj_loglik) {
         warning(c("the intercept likelihood is lower than the alternative model;",
                 "this shouldn't happen and it suggests that there is no support",
                 "for adding covariates to your model"))
       }
-      # this r-squared estimator is a little more robust than: 
+      # this r-squared estimator is a little more robust than:
       # 1 - (AIC(alt)/AIC(intercept)); but captures the same thing
       r_squared <- (intercept_m_k_adj_loglik - m_k_adj_loglik) / m_k_adj_loglik
     } else if (grepl(tolower(method), pattern = "mse")) {
       intercept_m <- unmarked::update(
-        m, 
+        m,
         "~1+offset(log(effort))",
         "~1",
-        "~1", 
+        "~1",
         mixture = m@mixture
       )
-      r_squared <- 1 - ( est_residual_mse(m) / est_residual_mse(intercept_m) )
+      r_squared <- ( est_residual_mse(intercept_m) - est_residual_mse(m)  ) / est_residual_mse(intercept_m)
     }
   } else if ( inherits(m, "glm") ) {
     # a standard glm internally calculates deviance and null deviance --
@@ -390,12 +396,12 @@ est_cohens_f_power <- function(m_0=NULL, m_1=NULL, alpha=0.05)
 }
 #' bs_est_cohens_f_power
 bs_est_cohens_f_power <- function(
-  m_0_formula=NULL, 
-  m_1_formula=NULL, 
-  bird_data=NULL, 
-  n=154, 
-  replace=T, 
-  m_scale=NULL, 
+  m_0_formula=NULL,
+  m_1_formula=NULL,
+  bird_data=NULL,
+  n=154,
+  replace=T,
+  m_scale=NULL,
   type="gdistsamp")
 {
   # is this a standard glm?
@@ -545,16 +551,17 @@ bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=154,
     return(round(mean(cohens_d_n, na.rm = T), 2))
   }
 }
-#' bs_est_pseudo_rsquared . This is a bootstrapped implementation of our 
+#' bs_est_pseudo_rsquared . This is a bootstrapped implementation of our
 #' mcfadden's pseudo r squared estimator. It is very much in testing.
 #' @export
 bs_est_pseudo_rsquared <- function(
-  formula=NULL, 
-  type="glm", 
+  formula=NULL,
+  type="glm",
   bird_data=NULL,
-  n=NULL, 
-  m_scale=NULL, 
-  replace=T
+  n=NULL,
+  m_scale=NULL,
+  replace=T,
+  method="likelihood"
   ) {
     # is this a standard glm?
     if (grepl(tolower(type), pattern = "glm")) {
@@ -570,7 +577,7 @@ bs_est_pseudo_rsquared <- function(
                   replace = replace),],
                 family = poisson()
             );
-            return(est_pseudo_rsquared(m))
+            return(est_pseudo_rsquared(m, method=method))
         }
       )
     # are we fitting a hierarchical model?
@@ -578,30 +585,30 @@ bs_est_pseudo_rsquared <- function(
       cl <- parallel::makeCluster(parallel::detectCores()-1)
       parallel::clusterExport(
         cl,
-        varlist=c("downsample_transects_by",
+        varlist = c("downsample_transects_by",
                   "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
                   "est_residual_sse","N_BS_REPLICATES", "backscale_var"),
-        envir=globalenv()
+        envir = globalenv()
       )
       parallel::clusterExport(
         cl,
-        varlist=c("bird_data", "n", "replace","formula","m_scale"),
-        envir=environment()
+        varlist = c("bird_data", "n", "replace","formula","m_scale", "method"),
+        envir = environment()
       )
       # parallelize our r-squared bootstrap operation
       pseudo_r_squared_n <- unlist(parallel::parLapply(
-        cl=cl,
-        X=1:N_BS_REPLICATES,
-        fun=function(i) {
+        cl = cl,
+        X = 1:N_BS_REPLICATES,
+        fun = function(i) {
             # balance our transects and resample (with replacement) how ever
             # many rows are needed to satisfy our parameter n
             rows <-  sample(
               downsample_transects_by(
-                bird_data=bird_data@siteCovs,
-                m_scale=m_scale
+                bird_data = bird_data@siteCovs,
+                m_scale = m_scale
               ),
-              size=n,
-              replace=replace
+              size = n,
+              replace = replace
             )
             bird_data@siteCovs <- bird_data@siteCovs[rows,]
             bird_data@y <- bird_data@y[rows,]
@@ -621,7 +628,7 @@ bs_est_pseudo_rsquared <- function(
             if (class(m) == "try-error") {
               return(NA)
             } else {
-              return(est_pseudo_rsquared(m))
+              return(est_pseudo_rsquared(m, method=method))
             }
         }
       ))
@@ -636,15 +643,15 @@ bs_est_pseudo_rsquared <- function(
 #' stolen in part from the AICcmodavg package, which has a broken implementation
 # bs_est_chisq_gof_test <- function (formula=NULL, nsim=10) {
 #   require(parallel)
-# 
+#
 #   m <-
 #     #gof <- Nmix.gof.test(mod=m, nsim=600, plot.hist=F)
 #     model.type <- AICcmodavg:::Nmix.chisq(m)$model.type
-# 
+#
 #   cl <- parallel::makeCluster(parallel::detectCores()-1)
-# 
+#
 #   parallel::clusterExport(cl, varlist=c("nsim","umdf","m"))
-# 
+#
 #   bs <- parallel::parLapply(
 #     cl=cl,
 #     X=1:nsim,
@@ -661,20 +668,20 @@ bs_est_pseudo_rsquared <- function(
 #         return(list(t0=as.vector(ret@t0), t.star=as.vector(ret@t.star)))
 #       }
 #     })
-# 
+#
 #   t.star <- unlist(bs) [ which(names(unlist(bs)) == "t.star") ]
 #   t0 <- unlist(bs) [ which(names(unlist(bs)) == "t0") ]
-# 
+#
 #   nsim <- length(t.star) # update our nsim to account for any failures
-# 
+#
 #   p.value <- sum(t.star >= t0) / nsim
-# 
+#
 #   if (p.value == 0) {
 #     p.display <- paste("<", round(1/length(t.star), 5))
 #   } else {
 #     p.display = paste("=", round(p.value, digits = 4))
 #   }
-# 
+#
 #   if (plot.hist) {
 #     hist(out@t.star, main = as.expression(substitute("Bootstrapped "*chi^2*" fit statistic ("*nsim*" samples)",
 #                                                      list(nsim = nsim))),
@@ -684,9 +691,9 @@ bs_est_pseudo_rsquared <- function(
 #   }
 #   # estimate our dispersion parameter
 #   c.hat.est <- t0/mean(t.star)
-# 
+#
 #   gof.out <- list(model.type = model.type, chi.square = mean(t0), t.star = mean(t.star), p.value = p.display, c.hat.est = mean(c.hat.est), nsim = nsim)
-# 
+#
 #   return(gof.out)
 # }
 
@@ -842,17 +849,17 @@ distance_models$losh <- list(umdf=build_umdf_for_spp(
 
 # GRSP
 full_model_formula <- paste(
-  c("poly(crp_ar, 1, raw = T) + poly(grass_ar, 1, raw = T) +", 
+  c("poly(crp_ar, 1, raw = T) + poly(grass_ar, 1, raw = T) +",
     "poly(shrub_ar, 1, raw = T) + poly(pat_ct, 1, raw = T) +",
     "poly(mean_me_sh, 1, raw=T) + poly(mean_me_o, 1, raw=T) +",
     "poly(mean_ju_sh, 1, raw=T) + poly(mean_ju_o, 1, raw=T) +",
-    "offset(log(effort))"), 
+    "offset(log(effort))"),
   collapse = ""
 )
 minus_mesq_juni_model_formula <- paste(
-  c("poly(crp_ar, 1, raw = T) + poly(grass_ar, 1, raw = T) +", 
+  c("poly(crp_ar, 1, raw = T) + poly(grass_ar, 1, raw = T) +",
     "poly(shrub_ar, 1, raw = T) + poly(pat_ct, 1, raw = T) +",
-    "offset(log(effort))"), 
+    "offset(log(effort))"),
   collapse = ""
 )
 distance_models$grsp$minus_mesq_juni_model <- fit_gdistsamp(
@@ -909,45 +916,45 @@ distance_models$grsp$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 distance_models$grsp$cohens_f_n_154 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula, 
-  full_model_formula, 
-  n = 154, 
-  bird_data = distance_models$grsp$umdf, 
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 154,
+  bird_data = distance_models$grsp$umdf,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_f_n_540 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula, 
-  full_model_formula, 
-  n = 540, 
-  bird_data = distance_models$grsp$umdf, 
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 540,
+  bird_data = distance_models$grsp$umdf,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_f_n_720 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula, 
-  full_model_formula, 
-  n = 720, 
-  bird_data = distance_models$grsp$umdf, 
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 720,
+  bird_data = distance_models$grsp$umdf,
   m_scale = m_scale
 )
 # WEME
 full_model_formula <- paste(
-  c("poly(grass_ar, 2, raw = T) + ", 
+  c("poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
     "poly(pat_ct, 1, raw = T) + ",
     "poly(map, 2, raw=T) + ",
-    "poly(mean_me_sh, 1, raw=T) + ", 
+    "poly(mean_me_sh, 1, raw=T) + ",
     "poly(mean_me_o, 1, raw=T) + ",
     "poly(mean_ju_sh, 1, raw=T) + ",
     "poly(mean_ju_o, 1, raw=T) + ",
-    "offset(log(effort))"), 
+    "offset(log(effort))"),
   collapse = ""
 )
 minus_mesq_juni_model_formula <- paste(
-  c("poly(grass_ar, 2, raw = T) + ", 
+  c("poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
     "poly(pat_ct, 1, raw = T) + ",
     "poly(map, 2, raw=T) + ",
-    "offset(log(effort))"), 
+    "offset(log(effort))"),
   collapse = ""
 )
 distance_models$weme$full_model <- fit_gdistsamp(
@@ -957,6 +964,8 @@ distance_models$weme$full_model <- fit_gdistsamp(
 )
 distance_models$weme$intercept_model <- unmarked::update(
   distance_models$weme$full_model,
+  "~1+offset(log(effort))",
+  "~1",
   "~1",
   mixture="NB"
 )
@@ -966,7 +975,8 @@ distance_models$weme$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   n = 154,
   replace = F,
   m_scale = m_scale,
-  type = "gdistsamp"
+  type = "gdistsamp",
+  method = "mse"
 )
 distance_models$weme$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
@@ -997,47 +1007,47 @@ distance_models$weme$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 distance_models$weme$cohens_f_n_154 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula, 
-  full_model_formula, 
-  n = 154, 
-  bird_data = distance_models$weme$umdf, 
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 154,
+  bird_data = distance_models$weme$umdf,
   m_scale = m_scale
 )
 distance_models$weme$cohens_f_n_540 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula, 
-  full_model_formula, 
-  n = 540, 
-  bird_data = distance_models$weme$umdf, 
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 540,
+  bird_data = distance_models$weme$umdf,
   m_scale = m_scale
 )
 distance_models$weme$cohens_f_n_720 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula, 
-  full_model_formula, 
-  n = 720, 
-  bird_data = distance_models$weme$umdf, 
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 720,
+  bird_data = distance_models$weme$umdf,
   m_scale = m_scale
 )
 # NOBO
 full_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
-    "poly(grass_ar, 2, raw = T) + ", 
+    "poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
     "poly(mat, 2, raw=T) + ",
     "poly(map, 2, raw=T) + ",
-    "poly(mean_me_sh, 1, raw=T) + ", 
+    "poly(mean_me_sh, 1, raw=T) + ",
     "poly(mean_me_o, 1, raw=T) + ",
     "poly(mean_ju_sh, 1, raw=T) + ",
     "poly(mean_ju_o, 1, raw=T) + ",
-    "offset(log(effort))"), 
+    "offset(log(effort))"),
   collapse = ""
 )
 minus_mesq_juni_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
-    "poly(grass_ar, 2, raw = T) + ", 
+    "poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
     "poly(mat, 2, raw=T) + ",
     "poly(map, 2, raw=T) + ",
-    "offset(log(effort))"), 
+    "offset(log(effort))"),
   collapse = ""
 )
 distance_models$nobo$full_model <- fit_gdistsamp(
@@ -1087,43 +1097,50 @@ distance_models$nobo$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 distance_models$nobo$cohens_f_n_154 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula, 
-  full_model_formula, 
-  n = 154, 
-  bird_data = distance_models$nobo$umdf, 
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 154,
+  bird_data = distance_models$nobo$umdf,
+  m_scale = m_scale
+)
+distance_models$nobo$cohens_f_n_360 <- bs_est_cohens_f_power(
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 360,
+  bird_data = distance_models$nobo$umdf,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_f_n_540 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula, 
-  full_model_formula, 
-  n = 540, 
-  bird_data = distance_models$nobo$umdf, 
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 540,
+  bird_data = distance_models$nobo$umdf,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_f_n_720 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula, 
-  full_model_formula, 
-  n = 720, 
-  bird_data = distance_models$nobo$umdf, 
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 720,
+  bird_data = distance_models$nobo$umdf,
   m_scale = m_scale
 )
 # HOLA
 full_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
-    "poly(grass_ar, 1, raw = T) + ", 
+    "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
-    "poly(mean_me_sh, 1, raw=T) + ", 
+    "poly(mean_me_sh, 1, raw=T) + ",
     "poly(mean_me_o, 1, raw=T) + ",
     "poly(mean_ju_sh, 1, raw=T) + ",
     "poly(mean_ju_o, 1, raw=T) + ",
-    "offset(log(effort))"), 
+    "offset(log(effort))"),
   collapse = ""
 )
 minus_mesq_juni_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
-    "poly(grass_ar, 1, raw = T) + ", 
+    "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
-    "offset(log(effort))"), 
+    "offset(log(effort))"),
   collapse = ""
 )
 distance_models$hola$full_model <- fit_gdistsamp(
@@ -1172,6 +1189,34 @@ distance_models$hola$cohens_d_n_720 <- bs_est_cohens_d_power(
   bird_data = distance_models$hola$umdf,
   n = 720,
   replace = T,
+  m_scale = m_scale
+)
+distance_models$hola$cohens_f_n_154 <- bs_est_cohens_f_power(
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 154,
+  bird_data = distance_models$hola$umdf,
+  m_scale = m_scale
+)
+distance_models$hola$cohens_f_n_360 <- bs_est_cohens_f_power(
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 360,
+  bird_data = distance_models$hola$umdf,
+  m_scale = m_scale
+)
+distance_models$hola$cohens_f_n_540 <- bs_est_cohens_f_power(
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 540,
+  bird_data = distance_models$hola$umdf,
+  m_scale = m_scale
+)
+distance_models$hola$cohens_f_n_720 <- bs_est_cohens_f_power(
+  minus_mesq_juni_model_formula,
+  full_model_formula,
+  n = 720,
+  bird_data = distance_models$hola$umdf,
   m_scale = m_scale
 )
 # CASP
@@ -1226,22 +1271,22 @@ distance_models$casp$cohens_d_n_720 <- bs_est_cohens_d_power(
 # GRRO
 full_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
-    "poly(grass_ar, 1, raw = T) + ", 
+    "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
     "poly(mat, 1, raw = T) + ",
     "poly(map, 1, raw = T) + ",
-    "poly(mean_me_sh, 1, raw=T) + ", 
+    "poly(mean_me_sh, 1, raw=T) + ",
     "poly(mean_me_o, 1, raw=T) + ",
     "poly(mean_ju_sh, 1, raw=T) + ",
     "poly(mean_ju_o, 1, raw=T) + ",
-    "offset(log(effort))"), 
+    "offset(log(effort))"),
   collapse = ""
 )
 minus_mesq_juni_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
-    "poly(grass_ar, 1, raw = T) + ", 
+    "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
-    "offset(log(effort))"), 
+    "offset(log(effort))"),
   collapse = ""
 )
 distance_models$grro$full_model <- fit_gdistsamp(
