@@ -224,6 +224,7 @@ est_deviance_from_likelihood <- function(m=NULL) {
 est_residual_mse <- function(m, log=T) {
   if ( inherits(m, "unmarkedFitGDS") ) {
     df <- length(m@data@y) - est_k_parameters(m)
+    # do we want to log-transform our residuals, e.g. to normalize Poisson data?
     if (log) {
       residuals <- log(residuals(m)^2)
       residuals[is.infinite(residuals)] <- 0
@@ -240,9 +241,9 @@ est_residual_mse <- function(m, log=T) {
 }
 #' a robust estimator for residual sum-of-square error that can account for
 #' degrees of freedom in a model
-est_residual_sse <- function(m, log=F) {
+est_residual_sse <- function(m, log=T) {
   if ( inherits(m, "unmarkedFitGDS") ) {
-    # do we want to log-transform our residuals, e.g. for Poisson data?
+    # do we want to log-transform our residuals, e.g. to normalize Poisson data?
     if (log) {
       residuals <- log(residuals(m)^2)
         residuals[is.infinite(residuals)] <- 0
@@ -1076,7 +1077,8 @@ distance_models$nobo$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   n = 154,
   replace = F,
   m_scale = m_scale,
-  type = "gdistsamp"
+  type = "gdistsamp",
+  method = "mse"
 )
 distance_models$nobo$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
