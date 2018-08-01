@@ -898,15 +898,15 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-minus_mesq_juni_model_formula <- paste(
+null_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + poly(grass_ar, 1, raw = T) +",
     "poly(shrub_ar, 1, raw = T) + poly(pat_ct, 1, raw = T) +",
     "poly(map, 2, raw = T) +",
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$grsp$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = minus_mesq_juni_model_formula,
+distance_models$grsp$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
   umdf = distance_models$grsp$umdf,
   mixture = "NB"
 )
@@ -928,58 +928,59 @@ distance_models$grsp$intercept_model <- unmarked::update(
   mixture = "NB"
 )
 distance_models$grsp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grsp$umdf,
   n = 154,
   replace = F,
   m_scale = m_scale,
-  type = "gdistsamp"
+  type = "gdistsamp",
+  method = "mse"
 )
 distance_models$grsp$cohens_d_n_154 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grsp$umdf,
   n = 154,
   replace = T,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_d_n_360 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grsp$umdf,
   n = 360,
   replace = T,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_d_n_540 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grsp$umdf,
   n = 540,
   replace = T,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_d_n_720 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grsp$umdf,
   n = 720,
   replace = T,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_f_n_154 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
-  full_model_formula,
+  null_formula,
+  full_model_formula_imbcr_covs,
   n = 154,
   bird_data = distance_models$grsp$umdf,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_f_n_540 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
-  full_model_formula,
+  null_formula,
+  full_model_formula_imbcr_covs,
   n = 540,
   bird_data = distance_models$grsp$umdf,
   m_scale = m_scale
 )
 distance_models$grsp$cohens_f_n_720 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
-  full_model_formula,
+  null_formula,
+  full_model_formula_imbcr_covs,
   n = 720,
   bird_data = distance_models$grsp$umdf,
   m_scale = m_scale
@@ -1008,7 +1009,7 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-minus_mesq_juni_model_formula <- paste(
+null_formula <- paste(
   c("poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
     "poly(pat_ct, 1, raw = T) + ",
@@ -1016,8 +1017,8 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$weme$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = minus_mesq_juni_model_formula,
+distance_models$weme$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
   umdf = distance_models$weme$umdf,
   mixture = "NB"
 )
@@ -1076,21 +1077,21 @@ distance_models$weme$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 distance_models$weme$cohens_f_n_154 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 154,
   bird_data = distance_models$weme$umdf,
   m_scale = m_scale
 )
 distance_models$weme$cohens_f_n_540 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 540,
   bird_data = distance_models$weme$umdf,
   m_scale = m_scale
 )
 distance_models$weme$cohens_f_n_720 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 720,
   bird_data = distance_models$weme$umdf,
@@ -1123,7 +1124,7 @@ full_model_formula_morap_covs <- paste(
   collapse = ""
 )
 
-minus_mesq_juni_model_formula <- paste(
+null_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1133,8 +1134,8 @@ minus_mesq_juni_model_formula <- paste(
   collapse = ""
 )
 
-distance_models$nobo$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = minus_mesq_juni_model_formula,
+distance_models$nobo$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
   umdf = distance_models$nobo$umdf,
   mixture = "NB"
 )
@@ -1193,28 +1194,28 @@ distance_models$nobo$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 distance_models$nobo$cohens_f_n_154 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 154,
   bird_data = distance_models$nobo$umdf,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_f_n_360 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 360,
   bird_data = distance_models$nobo$umdf,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_f_n_540 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 540,
   bird_data = distance_models$nobo$umdf,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_f_n_720 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 720,
   bird_data = distance_models$nobo$umdf,
@@ -1241,7 +1242,7 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-minus_mesq_juni_model_formula <- paste(
+null_formula <- paste(
   c("poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
     "poly(pat_ct, 1, raw = T) + ",
@@ -1249,15 +1250,15 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-minus_mesq_juni_model_formula <- paste(
+null_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$hola$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = minus_mesq_juni_model_formula,
+distance_models$hola$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
   umdf = distance_models$hola$umdf,
   mixture = "NB"
 )
@@ -1316,28 +1317,28 @@ distance_models$hola$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 distance_models$hola$cohens_f_n_154 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 154,
   bird_data = distance_models$hola$umdf,
   m_scale = m_scale
 )
 distance_models$hola$cohens_f_n_360 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 360,
   bird_data = distance_models$hola$umdf,
   m_scale = m_scale
 )
 distance_models$hola$cohens_f_n_540 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 540,
   bird_data = distance_models$hola$umdf,
   m_scale = m_scale
 )
 distance_models$hola$cohens_f_n_720 <- bs_est_cohens_f_power(
-  minus_mesq_juni_model_formula,
+  null_formula,
   full_model_formula,
   n = 720,
   bird_data = distance_models$hola$umdf,
@@ -1371,7 +1372,7 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-minus_mesq_juni_model_formula <- paste(
+null_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1381,8 +1382,8 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$casp$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = minus_mesq_juni_model_formula,
+distance_models$casp$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
   umdf = distance_models$casp$umdf,
   mixture = "NB"
 )
@@ -1472,7 +1473,7 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-minus_mesq_juni_model_formula <- paste(
+null_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1481,8 +1482,8 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$grro$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = minus_mesq_juni_model_formula,
+distance_models$grro$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
   umdf = distance_models$grro$umdf,
   mixture = "NB"
 )
@@ -1564,7 +1565,7 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-minus_mesq_juni_model_formula <- paste(
+null_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1573,8 +1574,8 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$stfl$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = minus_mesq_juni_model_formula,
+distance_models$stfl$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
   umdf = distance_models$stfl$umdf,
   mixture = "NB"
 )
@@ -1656,7 +1657,7 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-minus_mesq_juni_model_formula <- paste(
+null_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1665,8 +1666,8 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$scqu$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = minus_mesq_juni_model_formula,
+distance_models$scqu$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
   umdf = distance_models$scqu$umdf,
   mixture = "NB"
 )
@@ -1692,8 +1693,9 @@ distance_models$scqu$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   bird_data=distance_models$scqu$umdf,
   n = 154,
   replace = F,
-  m_scale=m_scale,
-  type="gdistsamp"
+  m_scale = m_scale,
+  type = "gdistsamp", 
+  method = "mse"
 )
 distance_models$scqu$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula,
@@ -1748,7 +1750,7 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-minus_mesq_juni_model_formula <- paste(
+null_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1757,8 +1759,8 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$losh$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = minus_mesq_juni_model_formula,
+distance_models$losh$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
   umdf = distance_models$losh$umdf,
   mixture = "NB"
 )
