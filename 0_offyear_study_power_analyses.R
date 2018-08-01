@@ -14,6 +14,7 @@ load("/global_workspace/iplan_models/stable/weme_imbcr_hds_negbin_workflow_feb_1
 # LOCAL FUNCTIONS FOR POWER ANALYSES AND RELATED TASKS
 #
 
+#' hidden function that will download explanatory data from google drive
 import_shrub_data <- function(
   url=paste(c("https://docs.google.com/spreadsheets/d/e/2PACX-1vTVV7wxAN1ras6Nmq_FM3aq",
   "S8b4bJc0SUD4HAvLw86ud2wyWWBkFZDiOKA0vEOg64J8rRx2APllafNf/pub?gid=1603612468&",
@@ -25,6 +26,14 @@ import_shrub_data <- function(
   t <- read.csv(temp_filename)
     unlink(temp_filename, force = T)
   return(t)
+}
+#' hidden function remove transects that have NA values from model fitting
+drop_na_transects <- function(umdf=NULL){
+  rows_to_keep <- rowSums(is.na(umdf@siteCovs)) == 0
+  umdf@siteCovs <- umdf@siteCovs[ rows_to_keep, ]
+  umdf@y <- umdf@y[ rows_to_keep , ]
+  umdf@tlength <- rep(1, sum(rows_to_keep))
+  return(umdf)
 }
 #' hidden shorthand function will reverse a scale() operation on a scaled data.frame,
 #' using a previously-fit m_scale scale() object
@@ -314,7 +323,7 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
 #' unmarked that should give you pause. I try to be as verbose as I can
 #' with warnings when I fudge numbers reported by unmarked models.
 #' @export
-est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
+est_pseudo_rsquared <- function(m=NULL, method="mse") {
   if ( inherits(m, "unmarkedFitGDS") ) {
     intercept_m <- unmarked::update(
       m,
@@ -386,14 +395,14 @@ est_pseudo_rsquared <- function(m=NULL, method="likelihood") {
         "~1",
         mixture = m@mixture
       )
-      r_squared <- ( est_residual_mse(intercept_m) - est_residual_mse(m)  ) / est_residual_mse(intercept_m)
+      r_squared <- (est_residual_mse(intercept_m) - est_residual_mse(m)) / est_residual_mse(intercept_m)
     }
   } else if ( inherits(m, "glm") ) {
     # a standard glm internally calculates deviance and null deviance --
     # use it by default
-    r_squared <- 1 - ( m$deviance / m$null.deviance )
+    r_squared <- (m$null.deviance - m$deviance) / m$null.deviance
   }
-  return( ifelse(r_squared < 0, 0, round(r_squared, 2)) )
+  return( ifelse(r_squared < 0, 0, round(r_squared, 3)) )
 }
 #' Cohen's (1988) power for null and alternative models that leverages
 #' residual variance explained for effects sizes for a take on the f-ratio
@@ -908,7 +917,7 @@ distance_models$grsp$full_model_imbcr_covs <- fit_gdistsamp(
 )
 distance_models$grsp$full_model_morap_covs <- fit_gdistsamp(
   lambdas = full_model_formula_morap_covs,
-  umdf = distance_models$grsp$umdf,
+  umdf = drop_na_transects(distance_models$grsp$umdf),
   mixture = "NB"
 )
 distance_models$grsp$intercept_model <- unmarked::update(
@@ -999,7 +1008,6 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-
 minus_mesq_juni_model_formula <- paste(
   c("poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1020,7 +1028,7 @@ distance_models$weme$full_model_imbcr_covs <- fit_gdistsamp(
 )
 distance_models$weme$full_model_morap_covs <- fit_gdistsamp(
   lambdas = full_model_formula_morap_covs,
-  umdf = distance_models$weme$umdf,
+  umdf = drop_na_transects(distance_models$weme$umdf),
   mixture = "NB"
 )
 distance_models$weme$intercept_model <- unmarked::update(
@@ -1089,7 +1097,7 @@ distance_models$weme$cohens_f_n_720 <- bs_est_cohens_f_power(
   m_scale = m_scale
 )
 # NOBO
-full_model_formula <- paste(
+full_model_formula_imbcr_covs <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1102,6 +1110,19 @@ full_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
+
+full_model_formula_morap_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 2, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 2, raw=T) + ",
+    "poly(map, 2, raw=T) + ",
+    "poly(morap_me_sh, 1, raw=T) + ",
+    "poly(morap_ju_sh, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
+
 minus_mesq_juni_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 2, raw = T) + ",
@@ -1111,15 +1132,28 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$nobo$full_model <- fit_gdistsamp(
-  lambdas=full_model_formula,
-  umdf=distance_models$nobo$umdf,
-  mixture="NB"
+
+distance_models$nobo$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = minus_mesq_juni_model_formula,
+  umdf = distance_models$nobo$umdf,
+  mixture = "NB"
+)
+distance_models$nobo$full_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_imbcr_covs,
+  umdf = distance_models$nobo$umdf,
+  mixture = "NB"
+)
+distance_models$nobo$full_model_morap_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_morap_covs,
+  umdf = drop_na_transects(distance_models$nobo$umdf),
+  mixture = "NB"
 )
 distance_models$nobo$intercept_model <- unmarked::update(
-  distance_models$nobo$full_model,
+  distance_models$nobo$full_model_morap_covs,
+  "~1+offset(log(effort))",
   "~1",
-  mixture="NB"
+  "~1",
+  mixture = "NB"
 )
 distance_models$nobo$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula = full_model_formula,
@@ -1187,7 +1221,7 @@ distance_models$nobo$cohens_f_n_720 <- bs_est_cohens_f_power(
   m_scale = m_scale
 )
 # HOLA
-full_model_formula <- paste(
+full_model_formula_imbcr_covs <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1198,6 +1232,23 @@ full_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
+full_model_formula_morap_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(morap_me_sh, 1, raw=T) + ",
+    "poly(morap_ju_sh, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
+minus_mesq_juni_model_formula <- paste(
+  c("poly(grass_ar, 2, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(pat_ct, 1, raw = T) + ",
+    "poly(map, 2, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
 minus_mesq_juni_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
@@ -1205,17 +1256,27 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$hola$full_model <- fit_gdistsamp(
-  lambdas=full_model_formula,
-  umdf=distance_models$hola$umdf,
-  mixture="NB"
+distance_models$hola$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = minus_mesq_juni_model_formula,
+  umdf = distance_models$hola$umdf,
+  mixture = "NB"
+)
+distance_models$hola$full_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_imbcr_covs,
+  umdf = distance_models$hola$umdf,
+  mixture = "NB"
+)
+distance_models$hola$full_model_morap_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_morap_covs,
+  umdf = drop_na_transects(distance_models$hola$umdf),
+  mixture = "NB"
 )
 distance_models$hola$intercept_model <- unmarked::update(
-  distance_models$hola$full_model,
+  distance_models$hola$full_model_morap_covs,
   "~1+offset(log(effort))",
   "~1",
   "~1",
-  mixture="NB"
+  mixture = "NB"
 )
 distance_models$hola$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula = full_model_formula,
@@ -1283,7 +1344,7 @@ distance_models$hola$cohens_f_n_720 <- bs_est_cohens_f_power(
   m_scale = m_scale
 )
 # CASP
-full_model_formula <- paste(
+full_model_formula_imbcr_covs <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 2, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1297,6 +1358,19 @@ full_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
+
+full_model_formula_morap_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 2, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(pat_ct, 1, raw = T) + ",
+    "poly(mat, 2, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "poly(morap_me_sh, 1, raw=T) + ",
+    "poly(morap_ju_sh, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
 minus_mesq_juni_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 2, raw = T) + ",
@@ -1307,19 +1381,37 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$casp$full_model <- fit_gdistsamp(
-  lambdas=full_model_formula,
-  umdf=distance_models$casp$umdf,
-  mixture="NB"
+distance_models$casp$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = minus_mesq_juni_model_formula,
+  umdf = distance_models$casp$umdf,
+  mixture = "NB"
+)
+distance_models$casp$full_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_imbcr_covs,
+  umdf = distance_models$casp$umdf,
+  mixture = "NB"
+)
+distance_models$casp$full_model_morap_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_morap_covs,
+  umdf = drop_na_transects(distance_models$casp$umdf),
+  mixture = "NB"
 )
 distance_models$casp$intercept_model <- unmarked::update(
-  distance_models$casp$full_model,
+  distance_models$casp$full_model_morap_covs,
   "~1+offset(log(effort))",
   "~1",
   "~1",
-  mixture="NB"
+  mixture = "NB"
 )
 distance_models$casp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_imbcr_covs,
+  bird_data = distance_models$casp$umdf,
+  replace = F,
+  n = 154,
+  m_scale = m_scale,
+  type = "gdistsamp"
+)
+distance_models$casp$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
   formula = full_model_formula,
   bird_data = distance_models$casp$umdf,
   replace = F,
@@ -1356,7 +1448,7 @@ distance_models$casp$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 # GRRO
-full_model_formula <- paste(
+full_model_formula_imbcr_covs <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1369,24 +1461,47 @@ full_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
+full_model_formula_morap_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 1, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "poly(morap_me_sh, 1, raw=T) + ",
+    "poly(morap_ju_sh, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
 minus_mesq_juni_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 1, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$grro$full_model <- fit_gdistsamp(
-  lambdas=full_model_formula,
-  umdf=distance_models$grro$umdf,
-  mixture="NB"
+distance_models$grro$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = minus_mesq_juni_model_formula,
+  umdf = distance_models$grro$umdf,
+  mixture = "NB"
+)
+distance_models$grro$full_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_imbcr_covs,
+  umdf = distance_models$grro$umdf,
+  mixture = "NB"
+)
+distance_models$grro$full_model_morap_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_morap_covs,
+  umdf = drop_na_transects(distance_models$grro$umdf),
+  mixture = "NB"
 )
 distance_models$grro$intercept_model <- unmarked::update(
-  distance_models$grro$full_model,
+  distance_models$grro$full_model_morap_covs,
   "~1+offset(log(effort))",
   "~1",
   "~1",
-  mixture="NB"
+  mixture = "NB"
 )
 distance_models$grro$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula = full_model_formula,
@@ -1425,17 +1540,28 @@ distance_models$grro$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 # STFL
-full_model_formula <- paste(
-c("poly(crp_ar, 1, raw = T) + ",
-  "poly(grass_ar, 1, raw = T) + ",
-  "poly(shrub_ar, 1, raw = T) + ",
-  "poly(mat, 1, raw = T) + ",
-  "poly(map, 1, raw = T) + ",
-  "poly(mean_me_sh, 1, raw=T) + ",
-  "poly(mean_me_o, 1, raw=T) + ",
-  "poly(mean_ju_sh, 1, raw=T) + ",
-  "poly(mean_ju_o, 1, raw=T) + ",
-  "offset(log(effort))"),
+full_model_formula_imbcr_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 1, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "poly(mean_me_sh, 1, raw=T) + ",
+    "poly(mean_me_o, 1, raw=T) + ",
+    "poly(mean_ju_sh, 1, raw=T) + ",
+    "poly(mean_ju_o, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
+full_model_formula_morap_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 1, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "poly(morap_me_sh, 1, raw=T) + ",
+    "poly(morap_ju_sh, 1, raw=T) + ",
+    "offset(log(effort))"),
   collapse = ""
 )
 minus_mesq_juni_model_formula <- paste(
@@ -1447,13 +1573,23 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$stfl$full_model <- fit_gdistsamp(
-  lambdas = full_model_formula,
+distance_models$stfl$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = minus_mesq_juni_model_formula,
   umdf = distance_models$stfl$umdf,
   mixture = "NB"
 )
+distance_models$stfl$full_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_imbcr_covs,
+  umdf = distance_models$stfl$umdf,
+  mixture = "NB"
+)
+distance_models$stfl$full_model_morap_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_morap_covs,
+  umdf = drop_na_transects(distance_models$stfl$umdf),
+  mixture = "NB"
+)
 distance_models$stfl$intercept_model <- unmarked::update(
-  distance_models$stfl$full_model,
+  distance_models$stfl$full_model_morap_covs,
   "~1+offset(log(effort))",
   "~1",
   "~1",
@@ -1496,18 +1632,29 @@ distance_models$stfl$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 # SCQU
-full_model_formula <- paste(
-c("poly(crp_ar, 1, raw = T) + ",
-  "poly(grass_ar, 1, raw = T) + ",
-  "poly(shrub_ar, 1, raw = T) + ",
-  "poly(mat, 2, raw = T) + ",
-  "poly(map, 1, raw = T) + ",
-  "poly(mean_me_sh, 1, raw=T) + ",
-  "poly(mean_me_o, 1, raw=T) + ",
-  "poly(mean_ju_sh, 1, raw=T) + ",
-  "poly(mean_ju_o, 1, raw=T) + ",
-  "offset(log(effort))"),
-collapse = ""
+full_model_formula_imbcr_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 2, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "poly(mean_me_sh, 1, raw=T) + ",
+    "poly(mean_me_o, 1, raw=T) + ",
+    "poly(mean_ju_sh, 1, raw=T) + ",
+    "poly(mean_ju_o, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
+full_model_formula_morap_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 2, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "poly(morap_me_sh, 1, raw=T) + ",
+    "poly(morap_ju_sh, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
 )
 minus_mesq_juni_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
@@ -1518,17 +1665,27 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$scqu$full_model <- fit_gdistsamp(
-  lambdas=full_model_formula,
-  umdf=distance_models$scqu$umdf,
-  mixture="NB"
+distance_models$scqu$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = minus_mesq_juni_model_formula,
+  umdf = distance_models$scqu$umdf,
+  mixture = "NB"
+)
+distance_models$scqu$full_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_imbcr_covs,
+  umdf = distance_models$scqu$umdf,
+  mixture = "NB"
+)
+distance_models$scqu$full_model_morap_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_morap_covs,
+  umdf = drop_na_transects(distance_models$scqu$umdf),
+  mixture = "NB"
 )
 distance_models$scqu$intercept_model <- unmarked::update(
-  distance_models$scqu$full_model,
+  distance_models$scqu$full_model_morap_covs,
   "~1+offset(log(effort))",
   "~1",
   "~1",
-  mixture="NB"
+  mixture = "NB"
 )
 distance_models$scqu$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula=full_model_formula,
@@ -1567,18 +1724,29 @@ distance_models$scqu$cohens_d_n_720 <- bs_est_cohens_d_power(
   m_scale = m_scale
 )
 # LOSH
-full_model_formula <- paste(
-c("poly(crp_ar, 1, raw = T) + ",
-  "poly(grass_ar, 1, raw = T) + ",
-  "poly(shrub_ar, 1, raw = T) + ",
-  "poly(mat, 1, raw = T) + ",
-  "poly(map, 1, raw = T) + ",
-  "poly(mean_me_sh, 1, raw=T) + ",
-  "poly(mean_me_o, 1, raw=T) + ",
-  "poly(mean_ju_sh, 1, raw=T) + ",
-  "poly(mean_ju_o, 1, raw=T) + ",
-  "offset(log(effort))"),
-collapse = ""
+full_model_formula_imbcr_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 1, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "poly(mean_me_sh, 1, raw=T) + ",
+    "poly(mean_me_o, 1, raw=T) + ",
+    "poly(mean_ju_sh, 1, raw=T) + ",
+    "poly(mean_ju_o, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
+full_model_formula_morap_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 1, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "poly(morap_me_sh, 1, raw=T) + ",
+    "poly(morap_ju_sh, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
 )
 minus_mesq_juni_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
@@ -1589,17 +1757,27 @@ minus_mesq_juni_model_formula <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-distance_models$losh$full_model <- fit_gdistsamp(
-  lambdas = full_model_formula,
+distance_models$losh$minus_mesq_juni_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = minus_mesq_juni_model_formula,
   umdf = distance_models$losh$umdf,
   mixture = "NB"
 )
+distance_models$losh$full_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_imbcr_covs,
+  umdf = distance_models$losh$umdf,
+  mixture = "NB"
+)
+distance_models$losh$full_model_morap_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_morap_covs,
+  umdf = drop_na_transects(distance_models$losh$umdf),
+  mixture = "NB"
+)
 distance_models$losh$intercept_model <- unmarked::update(
-  distance_models$losh$full_model,
+  distance_models$losh$full_model_morap_covs,
   "~1+offset(log(effort))",
   "~1",
   "~1",
-  mixture="NB"
+  mixture = "NB"
 )
 distance_models$losh$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula=full_model_formula,
