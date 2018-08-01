@@ -386,7 +386,7 @@ est_pseudo_rsquared <- function(m=NULL, method="mse") {
       }
       # this r-squared estimator is a little more robust than:
       # 1 - (AIC(alt)/AIC(intercept)); but captures the same thing
-      r_squared <- (intercept_m_k_adj_loglik - m_k_adj_loglik) / m_k_adj_loglik
+      r_squared <- (intercept_m_k_adj_loglik - m_k_adj_loglik) / intercept_m_k_adj_loglik
     } else if (grepl(tolower(method), pattern = "mse")) {
       intercept_m <- unmarked::update(
         m,
@@ -589,7 +589,7 @@ bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=154,
 #' @export
 bs_est_pseudo_rsquared <- function(
   formula=NULL,
-  type="glm",
+  type="gdistsamp",
   bird_data=NULL,
   n=NULL,
   m_scale=NULL,
@@ -931,10 +931,10 @@ distance_models$grsp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grsp$umdf,
   n = 154,
-  replace = F,
+  replace = T,
   m_scale = m_scale,
   type = "gdistsamp",
-  method = "mse"
+  method = "likelihood"
 )
 distance_models$grsp$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula_imbcr_covs,
