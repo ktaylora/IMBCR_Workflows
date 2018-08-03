@@ -395,6 +395,28 @@ est_pseudo_rsquared <- function(m=NULL, method="deviance") {
       r_squared <- (est_deviance(intercept_m) - est_deviance(m)) / est_deviance(intercept_m)
     } else if (grepl(tolower(method), pattern = "mse")) {
       r_squared <- (est_residual_mse(intercept_m) - est_residual_mse(m)) / est_residual_mse(intercept_m)
+    } else if (grepl(tolower(method), pattern = "likelihood")) {
+      m_k_adj_loglik <-
+        m@negLogLike - est_k_parameters(m)
+      intercept_m_k_adj_loglik <-
+        intercept_m@negLogLike - est_k_parameters(intercept_m)
+      # warn user if the loglikelihood of our full model
+      # is lower for our null model
+      if (intercept_m_k_adj_loglik < m_k_adj_loglik) {
+        warning(c("the intercept likelihood is lower than the alternative model;",
+                "this shouldn't happen and it suggests that there is no support",
+                "for adding covariates to your model"))
+      }
+      r_squared <- (intercept_m_k_adj_loglik - m_k_adj_loglik) / intercept_m_k_adj_loglik
+    } else if (grepl(tolower(method), pattern = "mse")) {
+      intercept_m <- unmarked::update(
+        m,
+        "~1+offset(log(effort))",
+        "~1",
+        "~1",
+        mixture = m@mixture
+      )
+      r_squared <- (est_residual_mse(intercept_m) - est_residual_mse(m)) / est_residual_mse(intercept_m)
     } else {
       stop("unknown method")
     }
@@ -1145,7 +1167,7 @@ distance_models$nobo$full_model_morap_covs <- fit_gdistsamp(
 )
 distance_models$nobo$intercept_model <- unmarked::update(
   distance_models$nobo$full_model_morap_covs,
-  "~1+offset(log(effort))",
+  "~1",
   "~1",
   "~1",
   mixture = "NB"
@@ -1548,6 +1570,7 @@ full_model_formula_imbcr_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
+
 full_model_formula_morap_covs <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
@@ -1559,6 +1582,18 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
+
+distance_models$stfl$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
+  umdf = distance_models$stfl$umdf,
+  mixture = "NB"
+)
+distance_models$stfl$full_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_imbcr_covs,
+  umdf = distance_models$stfl$umdf,
+  mixture = "NB"
+)
+
 null_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
@@ -1578,6 +1613,7 @@ distance_models$stfl$full_model_imbcr_covs <- fit_gdistsamp(
   umdf = distance_models$stfl$umdf,
   mixture = "NB"
 )
+
 distance_models$stfl$full_model_morap_covs <- fit_gdistsamp(
   lambdas = full_model_formula_morap_covs,
   umdf = drop_na_transects(distance_models$stfl$umdf),
@@ -1763,6 +1799,12 @@ distance_models$losh$full_model_imbcr_covs <- fit_gdistsamp(
   umdf = distance_models$losh$umdf,
   mixture = "NB"
 )
+distance_models$losh$full_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_imbcr_covs,
+  umdf = distance_models$losh$umdf,
+  mixture = "NB"
+)
+
 distance_models$losh$full_model_morap_covs <- fit_gdistsamp(
   lambdas = full_model_formula_morap_covs,
   umdf = drop_na_transects(distance_models$losh$umdf),
