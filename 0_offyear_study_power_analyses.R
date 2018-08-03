@@ -384,7 +384,8 @@ est_pseudo_rsquared <- function(m=NULL, method="deviance") {
       "~1",
       "~1",
       mixture = m@mixture,
-      data = df
+      data = df,
+      se=F
     ))
     if (class(intercept_m) == "try-error") {
       warning("failed to get an intercept-only model to converge")
@@ -396,10 +397,8 @@ est_pseudo_rsquared <- function(m=NULL, method="deviance") {
     } else if (grepl(tolower(method), pattern = "mse")) {
       r_squared <- (est_residual_mse(intercept_m) - est_residual_mse(m)) / est_residual_mse(intercept_m)
     } else if (grepl(tolower(method), pattern = "likelihood")) {
-      m_k_adj_loglik <-
-        m@negLogLike - est_k_parameters(m)
-      intercept_m_k_adj_loglik <-
-        intercept_m@negLogLike - est_k_parameters(intercept_m)
+      m_k_adj_loglik <- m@negLogLike - est_k_parameters(m)
+      intercept_m_k_adj_loglik <- intercept_m@negLogLike - est_k_parameters(intercept_m)
       # warn user if the loglikelihood of our full model
       # is lower for our null model
       if (intercept_m_k_adj_loglik < m_k_adj_loglik) {
@@ -408,15 +407,6 @@ est_pseudo_rsquared <- function(m=NULL, method="deviance") {
                 "for adding covariates to your model"))
       }
       r_squared <- (intercept_m_k_adj_loglik - m_k_adj_loglik) / intercept_m_k_adj_loglik
-    } else if (grepl(tolower(method), pattern = "mse")) {
-      intercept_m <- unmarked::update(
-        m,
-        "~1+offset(log(effort))",
-        "~1",
-        "~1",
-        mixture = m@mixture
-      )
-      r_squared <- (est_residual_mse(intercept_m) - est_residual_mse(m)) / est_residual_mse(intercept_m)
     } else {
       stop("unknown method")
     }
@@ -939,6 +929,15 @@ distance_models$grsp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   type = "gdistsamp",
   method = "deviance"
 )
+distance_models$grsp$pseudo_r_squared_n_84 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_morap_covs,
+  bird_data = drop_na_transects(distance_models$grsp$umdf),
+  n = 84,
+  replace = T,
+  m_scale = m_scale,
+  type = "gdistsamp",
+  method = "deviance"
+)
 distance_models$grsp$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grsp$umdf,
@@ -1052,10 +1051,19 @@ distance_models$weme$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$weme$umdf,
   n = 154,
-  replace = F,
+  replace = T,
   m_scale = m_scale,
   type = "gdistsamp",
-  method = "mse"
+  method = "deviance"
+)
+distance_models$weme$pseudo_r_squared_n_84 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_morap_covs,
+  bird_data = drop_na_transects(distance_models$weme$umdf),
+  n = 84,
+  replace = T,
+  m_scale = m_scale,
+  type = "gdistsamp",
+  method = "deviance"
 )
 distance_models$weme$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula_imbcr_covs,
@@ -1165,45 +1173,53 @@ distance_models$nobo$full_model_morap_covs <- fit_gdistsamp(
   umdf = drop_na_transects(distance_models$nobo$umdf),
   mixture = "NB"
 )
-distance_models$nobo$intercept_model <- unmarked::update(
-  distance_models$nobo$full_model_morap_covs,
-  "~1",
-  "~1",
-  "~1",
-  mixture = "NB"
+distance_models$nobo$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
+  distance_models$nobo$full_model_imbcr_covs
+)
+distance_models$nobo$intercept_model_morap_covs <- fit_gdistsamp_intercept(
+  distance_models$nobo$full_model_morap_covs
 )
 distance_models$nobo$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$nobo$umdf,
   n = 154,
-  replace = F,
+  replace = T,
   m_scale = m_scale,
   type = "gdistsamp",
-  method = "mse"
+  method = "deviance"
+)
+distance_models$nobo$pseudo_r_squared_n_84 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_morap_covs,
+  bird_data = drop_na_transects(distance_models$nobo$umdf),
+  n = 84,
+  replace = T,
+  m_scale = m_scale,
+  type = "gdistsamp",
+  method = "deviance"
 )
 distance_models$nobo$cohens_d_n_154 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$nobo$umdf,
   n = 154,
   replace = T,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_d_n_360 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$nobo$umdf,
   n = 360,
   replace = T,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_d_n_540 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$nobo$umdf,
   n = 540,
   replace = T,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_d_n_720 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$nobo$umdf,
   n = 720,
   replace = T,
@@ -1211,28 +1227,28 @@ distance_models$nobo$cohens_d_n_720 <- bs_est_cohens_d_power(
 )
 distance_models$nobo$cohens_f_n_154 <- bs_est_cohens_f_power(
   null_formula,
-  full_model_formula,
+  full_model_formula_imbcr_covs,
   n = 154,
   bird_data = distance_models$nobo$umdf,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_f_n_360 <- bs_est_cohens_f_power(
   null_formula,
-  full_model_formula,
+  full_model_formula_imbcr_covs,
   n = 360,
   bird_data = distance_models$nobo$umdf,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_f_n_540 <- bs_est_cohens_f_power(
   null_formula,
-  full_model_formula,
+  full_model_formula_imbcr_covs,
   n = 540,
   bird_data = distance_models$nobo$umdf,
   m_scale = m_scale
 )
 distance_models$nobo$cohens_f_n_720 <- bs_est_cohens_f_power(
   null_formula,
-  full_model_formula,
+  full_model_formula_imbcr_covs,
   n = 720,
   bird_data = distance_models$nobo$umdf,
   m_scale = m_scale
@@ -1242,6 +1258,7 @@ full_model_formula_imbcr_covs <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
+    "poly(pat_ct, 1, raw = T) + ",
     "poly(mean_me_sh, 1, raw=T) + ",
     "poly(mean_me_o, 1, raw=T) + ",
     "poly(mean_ju_sh, 1, raw=T) + ",
@@ -1253,16 +1270,17 @@ full_model_formula_morap_covs <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
+    "poly(pat_ct, 1, raw = T) + ",
     "poly(morap_me_sh, 1, raw=T) + ",
     "poly(morap_ju_sh, 1, raw=T) + ",
     "offset(log(effort))"),
   collapse = ""
 )
 null_formula <- paste(
-  c("poly(grass_ar, 2, raw = T) + ",
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
     "poly(pat_ct, 1, raw = T) + ",
-    "poly(map, 2, raw=T) + ",
     "offset(log(effort))"),
   collapse = ""
 )
@@ -1288,45 +1306,53 @@ distance_models$hola$full_model_morap_covs <- fit_gdistsamp(
   umdf = drop_na_transects(distance_models$hola$umdf),
   mixture = "NB"
 )
-distance_models$hola$intercept_model <- unmarked::update(
-  distance_models$hola$full_model_morap_covs,
-  "~1+offset(log(effort))",
-  "~1",
-  "~1",
-  mixture = "NB"
+distance_models$nobo$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
+  distance_models$nobo$full_model_imbcr_covs
+)
+distance_models$nobo$intercept_model_morap_covs <- fit_gdistsamp_intercept(
+  distance_models$nobo$full_model_morap_covs
 )
 distance_models$hola$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$hola$umdf,
   n = 154,
-  replace = F,
+  replace = T,
   m_scale = m_scale,
   type = "gdistsamp",
-  method = "mse"
+  method = "deviance"
+)
+distance_models$hola$pseudo_r_squared_n_84 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_morap_covs,
+  bird_data = distance_models$hola$umdf,
+  n = 154,
+  replace = T,
+  m_scale = m_scale,
+  type = "gdistsamp",
+  method = "deviance"
 )
 distance_models$hola$cohens_d_n_154 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$hola$umdf,
   n = 154,
   replace = T,
   m_scale = m_scale
 )
 distance_models$hola$cohens_d_n_360 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$hola$umdf,
   n = 360,
   replace = T,
   m_scale = m_scale
 )
 distance_models$hola$cohens_d_n_540 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$hola$umdf,
   n = 540,
   replace = T,
   m_scale = m_scale
 )
 distance_models$hola$cohens_d_n_720 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$hola$umdf,
   n = 720,
   replace = T,
@@ -1334,28 +1360,28 @@ distance_models$hola$cohens_d_n_720 <- bs_est_cohens_d_power(
 )
 distance_models$hola$cohens_f_n_154 <- bs_est_cohens_f_power(
   null_formula,
-  full_model_formula,
+  full_model_formula_imbcr_covs,
   n = 154,
   bird_data = distance_models$hola$umdf,
   m_scale = m_scale
 )
 distance_models$hola$cohens_f_n_360 <- bs_est_cohens_f_power(
   null_formula,
-  full_model_formula,
+  full_model_formula_imbcr_covs,
   n = 360,
   bird_data = distance_models$hola$umdf,
   m_scale = m_scale
 )
 distance_models$hola$cohens_f_n_540 <- bs_est_cohens_f_power(
   null_formula,
-  full_model_formula,
+  full_model_formula_imbcr_covs,
   n = 540,
   bird_data = distance_models$hola$umdf,
   m_scale = m_scale
 )
 distance_models$hola$cohens_f_n_720 <- bs_est_cohens_f_power(
   null_formula,
-  full_model_formula,
+  full_model_formula_imbcr_covs,
   n = 720,
   bird_data = distance_models$hola$umdf,
   m_scale = m_scale
@@ -1413,52 +1439,51 @@ distance_models$casp$full_model_morap_covs <- fit_gdistsamp(
   umdf = drop_na_transects(distance_models$casp$umdf),
   mixture = "NB"
 )
-distance_models$casp$intercept_model <- unmarked::update(
-  distance_models$casp$full_model_morap_covs,
-  "~1+offset(log(effort))",
-  "~1",
-  "~1",
-  mixture = "NB"
+distance_models$casp$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
+  distance_models$casp$full_model_imbcr_covs
+)
+distance_models$casp$intercept_model_morap_covs <- fit_gdistsamp_intercept(
+  distance_models$casp$full_model_morap_covs
 )
 distance_models$casp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$casp$umdf,
-  replace = F,
+  replace = T,
   n = 154,
   m_scale = m_scale,
   type = "gdistsamp"
 )
 distance_models$casp$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
-  formula = full_model_formula,
+  formula = full_model_formula_morap_covs,
   bird_data = distance_models$casp$umdf,
-  replace = F,
-  n = 154,
+  replace = T,
+  n = 84,
   m_scale = m_scale,
   type = "gdistsamp"
 )
 distance_models$casp$cohens_d_n_154 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$casp$umdf,
   n = 154,
   replace = T,
   m_scale = m_scale
 )
 distance_models$casp$cohens_d_n_360 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$casp$umdf,
   n = 360,
   replace = T,
   m_scale = m_scale
 )
 distance_models$casp$cohens_d_n_540 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$casp$umdf,
   n = 540,
   replace = T,
   m_scale = m_scale
 )
 distance_models$casp$cohens_d_n_720 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$casp$umdf,
   n = 720,
   replace = T,
