@@ -127,6 +127,51 @@ fit_gdistsamp_intercept <- function(m){
   )
   return(intercept_m)
 }
+#'
+sum_detections <- function(imbcr_df=NULL, four_letter_code=NULL){
+  four_letter_code <- toupper(four_letter_code)
+  colnames(imbcr_df) <- tolower(colnames(imbcr_df))
+  sum_detections <- as.numeric(sapply(
+    X = unique(as.character(imbcr_df$transectnum)),
+    FUN = function(transect) {
+      # filter out the dataset so that we are only looking at the focal transect
+      this_transect <- imbcr_df@data[imbcr_df$transectnum == transect,]
+      # do we see our species of interest in this transect?
+      is_species_present <- sum(this_transect$birdcode == four_letter_code, na.rm=T) > 0
+      # if so, sum the radial distance observations that are greater than 0, else return 0
+      if (is_species_present) {
+        count <- sum(this_transect[this_transect$birdcode == four_letter_code,'radialdistance'] >= 0, na.rm=T)
+      } else {
+        count <- 0
+      }
+      return(count)
+    }))
+  return(sum_detections)
+}
+sum_all_bird_detections <- function(imbcr_df=NULL, transect_ids=NULL, byid=F){
+  if (inherits(imbcr_df, "Spatial")) {
+    imbcr_df <- imbcr_df@data
+  }
+  colnames(imbcr_df) <- tolower(colnames(imbcr_df))
+  # drop unknowns
+  imbcr_df <- imbcr_df[ imbcr_df$birdcode != "UNKN" , ]
+  # is this a robust detection with a distance observation?
+  imbcr_df <- imbcr_df[ imbcr_df$radialdistance >= 0 , ]
+  if (!is.null(transect_ids)) {
+    imbcr_df <- imbcr_df[ imbcr_df$transectnum %in% transect_ids , ]
+  }
+  if (byid) {
+    ret <- lapply(
+      X = unique(as.character(transect_ids)),
+      FUN = function(transect){
+        return(table(imbcr_df[ imbcr_df$transectnum == transect, 'birdcode' ]))
+      }
+    )
+  } else {
+    return(table(imbcr_df$birdcode))
+  }
+  return(ret)
+}
 #' hidden shorthand function that will build an unmarked data.frame (umdf)
 #' for fitting a distsamp model from a matrix of 1-km2 site covariates
 build_umdf_for_spp <- function(
@@ -819,6 +864,44 @@ m_pois_weme_w_shrub_covs <- glm(
   family=poisson()
 )
 #
+# Species Richness
+#
+richness <- do.call(
+  rbind,
+  sum_all_bird_detections(transect_data_2017, transect_ids = shrubs$transectnum, byid = T)
+)
+# account for sampling effort
+richness <- round(t(t(richness) / bird_data$effort), 3)
+alpha_richness <- rowSums(richness) # estimate of alpha species richness
+
+sort <- order(rowSums(richness, na.rm=T), decreasing = T)
+richness <- cbind(as.data.frame(richness[,1:10]), transectnum=as.character(shrubs$transectnum))
+
+richness <- richness[ sort ,  ] # sort transect richness by region-wide richness
+alpha_richness <- alpha_richness[ sort ]
+
+richness_cor_matrix <- cbind(alpha_richness, merge(richness, bird_data, by="transectnum"))
+richness_cor_matrix <- richness_cor_matrix[ , !grepl(colnames(richness_cor_matrix), pattern="transect|count|effort") ]
+richness_cor_matrix <- as.matrix(richness_cor_matrix)
+# pretty up the labels
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="map", replacement="precipitation")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="mat", replacement="temperature")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="mean_me", replacement="mesquite")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="mean_ju", replacement="ERC")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="me_sh", replacement="mesquite")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="ju_sh", replacement="ERC")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="_o", replacement="_overstory")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="_sh", replacement="_shrub_layer")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="_ar", replacement="_area_NASS")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="_ct", replacement="chiness")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="morap", replacement="MoRAP")
+colnames(richness_cor_matrix) <- gsub(colnames(richness_cor_matrix), pattern="_", replacement=" ")
+colnames(richness_cor_matrix) <- gsub("(^|[[:space:]])([[:alpha:]])", "\\1\\U\\2", colnames(richness_cor_matrix), perl=TRUE)
+
+corrplot::corrplot(cor(na.omit(richness_cor_matrix)),
+                   method="color")
+
+#
 # build an unmarked compatible data.frame from our above data.frame
 #
 distance_models <- list()
@@ -1306,11 +1389,11 @@ distance_models$hola$full_model_morap_covs <- fit_gdistsamp(
   umdf = drop_na_transects(distance_models$hola$umdf),
   mixture = "NB"
 )
-distance_models$nobo$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
-  distance_models$nobo$full_model_imbcr_covs
+distance_models$hola$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
+  distance_models$hola$full_model_imbcr_covs
 )
-distance_models$nobo$intercept_model_morap_covs <- fit_gdistsamp_intercept(
-  distance_models$nobo$full_model_morap_covs
+distance_models$hola$intercept_model_morap_covs <- fit_gdistsamp_intercept(
+  distance_models$hola$full_model_morap_covs
 )
 distance_models$hola$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
   formula = full_model_formula_imbcr_covs,
@@ -1538,44 +1621,51 @@ distance_models$grro$full_model_morap_covs <- fit_gdistsamp(
   umdf = drop_na_transects(distance_models$grro$umdf),
   mixture = "NB"
 )
-distance_models$grro$intercept_model <- unmarked::update(
-  distance_models$grro$full_model_morap_covs,
-  "~1+offset(log(effort))",
-  "~1",
-  "~1",
-  mixture = "NB"
+distance_models$grro$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
+  distance_models$grro$full_model_imbcr_covs
+)
+distance_models$grro$intercept_model_morap_covs <- fit_gdistsamp_intercept(
+  distance_models$grro$full_model_morap_covs
 )
 distance_models$grro$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grro$umdf,
+  replace = T,
   n = 154,
-  replace = F,
+  m_scale = m_scale,
+  type = "gdistsamp"
+)
+distance_models$grro$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_morap_covs,
+  bird_data = distance_models$grro$umdf,
+  replace = T,
+  n = 84,
   m_scale = m_scale,
   type = "gdistsamp"
 )
 distance_models$grro$cohens_d_n_154 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grro$umdf,
   n = 154,
   replace = T,
   m_scale = m_scale
 )
 distance_models$grro$cohens_d_n_360 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grro$umdf,
   n = 360,
   replace = T,
   m_scale = m_scale
 )
 distance_models$grro$cohens_d_n_540 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grro$umdf,
   n = 540,
   replace = T,
   m_scale = m_scale
 )
 distance_models$grro$cohens_d_n_720 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grro$umdf,
   n = 720,
   replace = T,
@@ -1595,7 +1685,6 @@ full_model_formula_imbcr_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-
 full_model_formula_morap_covs <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
@@ -1607,19 +1696,7 @@ full_model_formula_morap_covs <- paste(
     "offset(log(effort))"),
   collapse = ""
 )
-
-distance_models$stfl$null_model <- fit_gdistsamp(
-  lambdas = null_formula,
-  umdf = distance_models$stfl$umdf,
-  mixture = "NB"
-)
-distance_models$stfl$full_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = full_model_formula_imbcr_covs,
-  umdf = distance_models$stfl$umdf,
-  mixture = "NB"
-)
-
-null_formula <- paste(
+null_model_formula <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
     "poly(grass_ar, 1, raw = T) + ",
     "poly(shrub_ar, 1, raw = T) + ",
@@ -1638,50 +1715,56 @@ distance_models$stfl$full_model_imbcr_covs <- fit_gdistsamp(
   umdf = distance_models$stfl$umdf,
   mixture = "NB"
 )
-
 distance_models$stfl$full_model_morap_covs <- fit_gdistsamp(
   lambdas = full_model_formula_morap_covs,
   umdf = drop_na_transects(distance_models$stfl$umdf),
   mixture = "NB"
 )
-distance_models$stfl$intercept_model <- unmarked::update(
-  distance_models$stfl$full_model_morap_covs,
-  "~1+offset(log(effort))",
-  "~1",
-  "~1",
-  mixture = "NB"
+distance_models$stfl$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
+  distance_models$stfl$full_model_imbcr_covs
+)
+distance_models$stfl$intercept_model_morap_covs <- fit_gdistsamp_intercept(
+  distance_models$stfl$full_model_morap_covs
 )
 distance_models$stfl$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula = full_model_formula,
-  bird_data = distance_models$stfl$umdf@siteCovs,
+  formula = full_model_formula_imbcr_covs,
+  bird_data = distance_models$stfl$umdf,
+  replace = T,
   n = 154,
-  replace = F,
+  m_scale = m_scale,
+  type = "gdistsamp"
+)
+distance_models$stfl$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_morap_covs,
+  bird_data = distance_models$stfl$umdf,
+  replace = T,
+  n = 84,
   m_scale = m_scale,
   type = "gdistsamp"
 )
 distance_models$stfl$cohens_d_n_154 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$stfl$umdf,
   n = 154,
   replace = T,
   m_scale = m_scale
 )
 distance_models$stfl$cohens_d_n_360 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$stfl$umdf,
   n = 360,
   replace = T,
   m_scale = m_scale
 )
 distance_models$stfl$cohens_d_n_540 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$stfl$umdf,
   n = 540,
   replace = T,
   m_scale = m_scale
 )
 distance_models$stfl$cohens_d_n_720 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$stfl$umdf,
   n = 720,
   replace = T,
@@ -1736,45 +1819,51 @@ distance_models$scqu$full_model_morap_covs <- fit_gdistsamp(
   umdf = drop_na_transects(distance_models$scqu$umdf),
   mixture = "NB"
 )
-distance_models$scqu$intercept_model <- unmarked::update(
-  distance_models$scqu$full_model_morap_covs,
-  "~1+offset(log(effort))",
-  "~1",
-  "~1",
-  mixture = "NB"
+distance_models$scqu$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
+  distance_models$scqu$full_model_imbcr_covs
+)
+distance_models$scqu$intercept_model_morap_covs <- fit_gdistsamp_intercept(
+  distance_models$scqu$full_model_morap_covs
 )
 distance_models$scqu$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula=full_model_formula,
-  bird_data=distance_models$scqu$umdf,
+  formula = full_model_formula_imbcr_covs,
+  bird_data = distance_models$scqu$umdf,
+  replace = T,
   n = 154,
-  replace = F,
   m_scale = m_scale,
-  type = "gdistsamp",
-  method = "mse"
+  type = "gdistsamp"
+)
+distance_models$scqu$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_morap_covs,
+  bird_data = distance_models$scqu$umdf,
+  replace = T,
+  n = 84,
+  m_scale = m_scale,
+  type = "gdistsamp"
 )
 distance_models$scqu$cohens_d_n_154 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$scqu$umdf,
   n = 154,
   replace = T,
   m_scale = m_scale
 )
 distance_models$scqu$cohens_d_n_360 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$scqu$umdf,
   n = 360,
   replace = T,
   m_scale = m_scale
 )
 distance_models$scqu$cohens_d_n_540 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$scqu$umdf,
   n = 540,
   replace = T,
   m_scale = m_scale
 )
 distance_models$scqu$cohens_d_n_720 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$scqu$umdf,
   n = 720,
   replace = T,
@@ -1824,56 +1913,56 @@ distance_models$losh$full_model_imbcr_covs <- fit_gdistsamp(
   umdf = distance_models$losh$umdf,
   mixture = "NB"
 )
-distance_models$losh$full_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = full_model_formula_imbcr_covs,
-  umdf = distance_models$losh$umdf,
-  mixture = "NB"
-)
-
 distance_models$losh$full_model_morap_covs <- fit_gdistsamp(
   lambdas = full_model_formula_morap_covs,
   umdf = drop_na_transects(distance_models$losh$umdf),
   mixture = "NB"
 )
-distance_models$losh$intercept_model <- unmarked::update(
-  distance_models$losh$full_model_morap_covs,
-  "~1+offset(log(effort))",
-  "~1",
-  "~1",
-  mixture = "NB"
+distance_models$losh$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
+  distance_models$losh$full_model_imbcr_covs
+)
+distance_models$losh$intercept_model_morap_covs <- fit_gdistsamp_intercept(
+  distance_models$losh$full_model_morap_covs
 )
 distance_models$losh$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula=full_model_formula,
-  bird_data=distance_models$losh$umdf,
-  n=154,
-  replace = F,
-  m_scale=m_scale,
-  type="gdistsamp",
-  method = "mse"
+  formula = full_model_formula_imbcr_covs,
+  bird_data = distance_models$losh$umdf,
+  replace = T,
+  n = 154,
+  m_scale = m_scale,
+  type = "gdistsamp"
+)
+distance_models$losh$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_morap_covs,
+  bird_data = distance_models$losh$umdf,
+  replace = T,
+  n = 84,
+  m_scale = m_scale,
+  type = "gdistsamp"
 )
 distance_models$losh$cohens_d_n_154 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$losh$umdf,
   n = 154,
   replace = T,
   m_scale = m_scale
 )
 distance_models$losh$cohens_d_n_360 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$losh$umdf,
   n = 360,
   replace = T,
   m_scale = m_scale
 )
 distance_models$losh$cohens_d_n_540 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$losh$umdf,
   n = 540,
   replace = T,
   m_scale = m_scale
 )
 distance_models$losh$cohens_d_n_720 <- bs_est_cohens_d_power(
-  formula = full_model_formula,
+  formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$losh$umdf,
   n = 720,
   replace = T,
