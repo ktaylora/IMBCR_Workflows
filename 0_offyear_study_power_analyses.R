@@ -1700,6 +1700,34 @@ distance_models$grro$cohens_d_n_720 <- bs_est_cohens_d_power(
   replace = T,
   m_scale = m_scale
 )
+distance_models$grro$cohens_f_n_154 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 154,
+  bird_data = distance_models$grro$umdf,
+  m_scale = m_scale
+)
+distance_models$grro$cohens_f_n_360 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 360,
+  bird_data = distance_models$grro$umdf,
+  m_scale = m_scale
+)
+distance_models$grro$cohens_f_n_540 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 540,
+  bird_data = distance_models$grro$umdf,
+  m_scale = m_scale
+)
+distance_models$grro$cohens_f_n_720 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 720,
+  bird_data = distance_models$grro$umdf,
+  m_scale = m_scale
+)
 # STFL
 full_model_formula_imbcr_covs <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
@@ -1797,6 +1825,34 @@ distance_models$stfl$cohens_d_n_720 <- bs_est_cohens_d_power(
   bird_data = distance_models$stfl$umdf,
   n = 720,
   replace = T,
+  m_scale = m_scale
+)
+distance_models$stfl$cohens_f_n_154 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 154,
+  bird_data = distance_models$stfl$umdf,
+  m_scale = m_scale
+)
+distance_models$stfl$cohens_f_n_360 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 360,
+  bird_data = distance_models$stfl$umdf,
+  m_scale = m_scale
+)
+distance_models$stfl$cohens_f_n_540 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 540,
+  bird_data = distance_models$stfl$umdf,
+  m_scale = m_scale
+)
+distance_models$stfl$cohens_f_n_720 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 720,
+  bird_data = distance_models$stfl$umdf,
   m_scale = m_scale
 )
 # SCQU
@@ -1898,6 +1954,34 @@ distance_models$scqu$cohens_d_n_720 <- bs_est_cohens_d_power(
   replace = T,
   m_scale = m_scale
 )
+distance_models$scqu$cohens_f_n_154 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 154,
+  bird_data = distance_models$scqu$umdf,
+  m_scale = m_scale
+)
+distance_models$scqu$cohens_f_n_360 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 360,
+  bird_data = distance_models$scqu$umdf,
+  m_scale = m_scale
+)
+distance_models$scqu$cohens_f_n_540 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 540,
+  bird_data = distance_models$scqu$umdf,
+  m_scale = m_scale
+)
+distance_models$scqu$cohens_f_n_720 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 720,
+  bird_data = distance_models$scqu$umdf,
+  m_scale = m_scale
+)
 # LOSH
 full_model_formula_imbcr_covs <- paste(
   c("poly(crp_ar, 1, raw = T) + ",
@@ -1995,5 +2079,33 @@ distance_models$losh$cohens_d_n_720 <- bs_est_cohens_d_power(
   bird_data = distance_models$losh$umdf,
   n = 720,
   replace = T,
+  m_scale = m_scale
+)
+distance_models$losh$cohens_f_n_154 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 154,
+  bird_data = distance_models$losh$umdf,
+  m_scale = m_scale
+)
+distance_models$losh$cohens_f_n_360 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 360,
+  bird_data = distance_models$losh$umdf,
+  m_scale = m_scale
+)
+distance_models$losh$cohens_f_n_540 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 540,
+  bird_data = distance_models$losh$umdf,
+  m_scale = m_scale
+)
+distance_models$losh$cohens_f_n_720 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 720,
+  bird_data = distance_models$losh$umdf,
   m_scale = m_scale
 )
