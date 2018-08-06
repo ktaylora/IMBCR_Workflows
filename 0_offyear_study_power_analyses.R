@@ -875,12 +875,13 @@ richness <- round(t(t(richness) / bird_data$effort), 3)
 alpha_richness <- rowSums(richness) # estimate of alpha species richness
 
 sort <- order(rowSums(richness, na.rm=T), decreasing = T)
-richness <- cbind(as.data.frame(richness[,1:10]), transectnum=as.character(shrubs$transectnum))
+richness <- cbind(data.frame(richness), transectnum=as.character(shrubs$transectnum))
 
 richness <- richness[ sort ,  ] # sort transect richness by region-wide richness
 alpha_richness <- alpha_richness[ sort ]
 
-richness_cor_matrix <- cbind(alpha_richness, merge(richness, bird_data, by="transectnum"))
+richness_cor_matrix <- cbind(alpha_richness=alpha_richness, merge(richness, bird_data, by="transectnum"))
+
 richness_cor_matrix <- richness_cor_matrix[ , !grepl(colnames(richness_cor_matrix), pattern="transect|count|effort") ]
 richness_cor_matrix <- as.matrix(richness_cor_matrix)
 # pretty up the labels
@@ -1406,7 +1407,7 @@ distance_models$hola$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$hola$pseudo_r_squared_n_84 <- bs_est_pseudo_rsquared(
   formula = full_model_formula_morap_covs,
-  bird_data = distance_models$hola$umdf,
+  bird_data = drop_na_transects(distance_models$hola$umdf),
   n = 154,
   replace = T,
   m_scale = m_scale,
@@ -1538,7 +1539,7 @@ distance_models$casp$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$casp$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
   formula = full_model_formula_morap_covs,
-  bird_data = distance_models$casp$umdf,
+  bird_data = drop_na_transects(distance_models$casp$umdf),
   replace = T,
   n = 84,
   m_scale = m_scale,
@@ -1570,6 +1571,34 @@ distance_models$casp$cohens_d_n_720 <- bs_est_cohens_d_power(
   bird_data = distance_models$casp$umdf,
   n = 720,
   replace = T,
+  m_scale = m_scale
+)
+distance_models$casp$cohens_f_n_154 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 154,
+  bird_data = distance_models$casp$umdf,
+  m_scale = m_scale
+)
+distance_models$casp$cohens_f_n_360 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 360,
+  bird_data = distance_models$casp$umdf,
+  m_scale = m_scale
+)
+distance_models$casp$cohens_f_n_540 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 540,
+  bird_data = distance_models$casp$umdf,
+  m_scale = m_scale
+)
+distance_models$casp$cohens_f_n_720 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 720,
+  bird_data = distance_models$casp$umdf,
   m_scale = m_scale
 )
 # GRRO
@@ -1637,7 +1666,7 @@ distance_models$grro$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$grro$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
   formula = full_model_formula_morap_covs,
-  bird_data = distance_models$grro$umdf,
+  bird_data = drop_na_transects(distance_models$grro$umdf),
   replace = T,
   n = 84,
   m_scale = m_scale,
@@ -1736,7 +1765,7 @@ distance_models$stfl$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$stfl$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
   formula = full_model_formula_morap_covs,
-  bird_data = distance_models$stfl$umdf,
+  bird_data = drop_na_transects(distance_models$stfl$umdf),
   replace = T,
   n = 84,
   m_scale = m_scale,
@@ -1835,7 +1864,7 @@ distance_models$scqu$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$scqu$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
   formula = full_model_formula_morap_covs,
-  bird_data = distance_models$scqu$umdf,
+  bird_data = drop_na_transects(distance_models$scqu$umdf),
   replace = T,
   n = 84,
   m_scale = m_scale,
@@ -1934,7 +1963,7 @@ distance_models$losh$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
 )
 distance_models$losh$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
   formula = full_model_formula_morap_covs,
-  bird_data = distance_models$losh$umdf,
+  bird_data = drop_na_transects(distance_models$losh$umdf),
   replace = T,
   n = 84,
   m_scale = m_scale,
