@@ -3,7 +3,7 @@ argv <- commandArgs(trailingOnly = T)
 # e.g., : https://goo.gl/KdEUUa
 est_deviance <- function(m, method="residuals"){
   if (grepl(tolower(method), pattern = "resid")) {
-    if ( inherits(m, "unmarkedFitGDS") ) {
+    if ( inherits(m, "unmarkedFit") ) {
       observed <- unmarked::getY(m@data)
       expected <- unmarked::fitted(m)
       # Deviance of full model : 2*sum(obs*log(obs/predicted)-(obs-predicted))
@@ -33,7 +33,7 @@ est_deviance <- function(m, method="residuals"){
 #' with warnings when I fudge numbers reported by unmarked models.
 #' @export
 est_pseudo_rsquared <- function(m=NULL, method="deviance") {
-  if ( inherits(m, "unmarkedFitGDS") ) {
+  if ( inherits(m, "unmarkedFit") ) {
     df <- m@data
     intercept_m <- try(update(
       m,
