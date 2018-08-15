@@ -262,5 +262,4 @@ ranch_status_adj_removal_m <- unmarked::multinomPois(
 )
 
 # propotion of variance explained by adding our ranch covariate?
-( est_deviance(intercept_adj_removal_m) - est_deviance(ranch_status_adj_removal_m) ) / 
-  est_deviance(intercept_adj_removal_m)
+est_pseudo_rsquared(ranch_status_adj_removal_m)
