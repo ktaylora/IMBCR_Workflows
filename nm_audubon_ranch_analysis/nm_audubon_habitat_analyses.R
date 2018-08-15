@@ -15,7 +15,7 @@ est_deviance <- function(m, method="residuals"){
       return(NA)
     }
   } else if (grepl(tolower(method), pattern = "likelihood")) {
-    if ( inherits(m, "unmarkedFitGDS") ) {
+    if ( inherits(m, "unmarkedFit") ) {
       return(2*as.numeric(abs(m@negLogLik)))
     } else if ( inherits(m, "glm") ) {
       return(-2*as.numeric(logLik(m)))
@@ -226,26 +226,26 @@ per_obs_det_probabilities[ per_obs_det_probabilities < 0.01 ] <- 0.01
 raw_transect_data$cl_count <- floor(1 / per_obs_det_probabilities)
 
 # use the adjusted point counts for removal modeling
-removal_detections <- calc_pooled_cluster_count_by_transect(
+adj_removal_detections <- calc_pooled_cluster_count_by_transect(
   imbcr_df = raw_transect_data, 
   four_letter_code = BIRD_CODE, 
   use_cl_count_field = T
 )
 
 # merge our minute intervals into two-minute intervals
-removal_detections$y <- cbind(
-  rowSums(removal_detections$y[, c(1:2)]), 
-  rowSums(removal_detections$y[, c(3:4)]), 
-  rowSums(removal_detections$y[, c(5:6)])
+adj_removal_detections$y <- cbind(
+  rowSums(adj_removal_detections$y[, c(1:2)]), 
+  rowSums(adj_removal_detections$y[, c(3:4)]), 
+  rowSums(adj_removal_detections$y[, c(5:6)])
 )
 
 umdf <- unmarked::unmarkedFrameMPois(
-  y = removal_detections$y, 
-  siteCovs = removal_detections$data,
+  y = adj_removal_detections$y, 
+  siteCovs = adj_removal_detections$data,
   type = "removal"
 )
 
-intercept_removal_m <- unmarked::multinomPois(
+intercept_adj_removal_m <- unmarked::multinomPois(
   ~1 ~ offset(log(effort)), 
   se = T,
   umdf
