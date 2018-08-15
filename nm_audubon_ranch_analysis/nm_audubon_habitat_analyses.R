@@ -239,6 +239,12 @@ adj_removal_detections$y <- cbind(
   rowSums(adj_removal_detections$y[, c(5:6)])
 )
 
+# tack-on a categorical "ranch status" variable to use for the modeling
+adj_removal_detections$data$ranch_status <- 
+  as.factor(
+    letters[ as.numeric(grepl(adj_removal_detections$data$transectnum, pattern="RANCH"))+1 ]
+  )
+
 umdf <- unmarked::unmarkedFrameMPois(
   y = adj_removal_detections$y, 
   siteCovs = adj_removal_detections$data,
@@ -247,6 +253,12 @@ umdf <- unmarked::unmarkedFrameMPois(
 
 intercept_adj_removal_m <- unmarked::multinomPois(
   ~1 ~ offset(log(effort)), 
+  se = T,
+  umdf
+)
+
+ranch_status_adj_removal_m <- unmarked::multinomPois(
+  ~1 ~ as.factor(ranch_status) + offset(log(effort)), 
   se = T,
   umdf
 )
