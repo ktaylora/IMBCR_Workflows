@@ -38,9 +38,7 @@ est_pseudo_rsquared <- function(m=NULL, method="deviance") {
     intercept_m <- try(update(
       m,
       "~1",
-      "~1",
-      "~1",
-      mixture = m@mixture,
+      "~1"
       data = df,
       se=F
     ))
@@ -264,4 +262,6 @@ ranch_status_adj_removal_m <- unmarked::multinomPois(
   umdf
 )
 
-( est_deviance(intercept_adj_removal_m) - est_deviance(ranch_status_adj_removal_m) ) / est_deviance(intercept_adj_removal_m)
+# propotion of variance explained by adding our ranch covariate?
+( est_deviance(intercept_adj_removal_m) - est_deviance(ranch_status_adj_removal_m) ) / 
+  est_deviance(intercept_adj_removal_m)
