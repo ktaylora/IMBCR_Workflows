@@ -176,8 +176,9 @@ distance_detections <- OpenIMBCR:::scrub_imbcr_df(
   four_letter_code = "WEME"
 )
 
-distance_detections <- OpenIMBCR:::calc_dist_bins(raw_transect_data)
-effort <- as.vector(OpenIMBCR:::calc_transect_effort(raw_transect_data))
+effort <- as.vector(OpenIMBCR:::calc_transect_effort(distance_detections))
+distance_detections <- OpenIMBCR:::calc_dist_bins(distance_detections)
+
 
 umdf <- unmarked::unmarkedFrameDS(
   y = as.matrix(distance_detections$y),

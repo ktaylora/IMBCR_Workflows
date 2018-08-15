@@ -116,7 +116,7 @@ fit_gdistsamp <- function(lambdas=NULL, umdf=NULL, mixture="NB", ...) {
 }
 fit_gdistsamp_intercept <- function(m){
   df <- m@data
-  intercept_m <- update(
+  intercept_m <- unmarked::update(
     m,
     "~1",
     "~1",
@@ -171,6 +171,30 @@ sum_all_bird_detections <- function(imbcr_df=NULL, transect_ids=NULL, byid=F){
     return(table(imbcr_df$birdcode))
   }
   return(ret)
+}
+#' estimate alpha species richness and report relative abundance 
+est_alpha_species_richness_matrix <- function(imbcr_df=NULL, transect_ids=NULL, byid=T){
+  if (inherits(imbcr_df, "Spatial")) {
+    imbcr_df <- imbcr_df@data
+  }
+  if(is.null(transect_ids)){
+    transect_ids <- imbcr_df$transecnum
+  }
+  richness <- do.call(
+    rbind,
+    sum_all_bird_detections(imbcr_df, transect_ids = transect_ids, byid = byid)
+  )
+  # account for sampling effort
+  richness <- round(t(t(richness) / imbcr_df$effort), 3)
+  alpha_richness <- rowSums(richness) # estimate of alpha species richness
+  
+  sort <- order(rowSums(richness, na.rm=T), decreasing = T)
+  richness <- cbind(data.frame(richness), transectnum=as.character(transect_ids))
+  
+  richness <- richness[ sort ,  ] # sort transect richness by region-wide richness
+  alpha_richness <- alpha_richness[ sort ]
+  
+  return(cbind(alpha_richness=alpha_richness, richness))
 }
 #' hidden shorthand function that will build an unmarked data.frame (umdf)
 #' for fitting a distsamp model from a matrix of 1-km2 site covariates
@@ -361,7 +385,7 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
     # this derivation of Cohen's power accomodates SD
     # note: using the probability distribution function for our test
     # this is: probability of obtaining a value < Z_mean(pred-0) - 1.96
-    m_power <- pnorm( (abs(mean(predict(m)) - 0) / sigma(m) ) *
+    m_power <- pnorm( (abs(mean(predict(m), na.rm=T) - 0) / sigma(m, na.rm=T) ) *
                        sqrt(m$df.residual) - z_alpha , lower.tail = T)
     m_power <- ifelse( round( m_power, 4) == 0, 1 / m$df.residual,
                        round( m_power, 4) )
@@ -617,7 +641,7 @@ bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=154,
     parallel::stopCluster(cl);
     rm(cl);
     # check for normality
-    if ( round(abs(median(cohens_d_n) - mean(cohens_d_n)), 2) != 0 ) {
+    if ( round(abs(median(cohens_d_n, na.rm=T) - mean(cohens_d_n, na.rm=T)), 2) != 0 ) {
       warning("cohen's d statistic looks skewed")
     }
     return(round(mean(cohens_d_n, na.rm = T), 2))
@@ -818,9 +842,9 @@ transects$weme_count <- as.numeric(sapply(
 # write to disk for validation
 writeOGR(
   transects,
-  dsn="/home/ktaylora/",
+  dsn="/home/ktaylora/offyear_study_transects.json",
   layer="offyear_study_transects",
-  driver="ESRI Shapefile",
+  driver="GeoJSON",
   overwrite=T
 )
 
@@ -1602,76 +1626,6 @@ distance_models$casp$cohens_f_n_720 <- bs_est_cohens_f_power(
   m_scale = m_scale
 )
 # GRRO
-full_model_formula_imbcr_covs <- paste(
-  c("poly(crp_ar, 1, raw = T) + ",
-    "poly(grass_ar, 1, raw = T) + ",
-    "poly(shrub_ar, 1, raw = T) + ",
-    "poly(mat, 1, raw = T) + ",
-    "poly(map, 1, raw = T) + ",
-    "poly(mean_me_sh, 1, raw=T) + ",
-    "poly(mean_me_o, 1, raw=T) + ",
-    "poly(mean_ju_sh, 1, raw=T) + ",
-    "poly(mean_ju_o, 1, raw=T) + ",
-    "offset(log(effort))"),
-  collapse = ""
-)
-full_model_formula_morap_covs <- paste(
-  c("poly(crp_ar, 1, raw = T) + ",
-    "poly(grass_ar, 1, raw = T) + ",
-    "poly(shrub_ar, 1, raw = T) + ",
-    "poly(mat, 1, raw = T) + ",
-    "poly(map, 1, raw = T) + ",
-    "poly(morap_me_sh, 1, raw=T) + ",
-    "poly(morap_ju_sh, 1, raw=T) + ",
-    "offset(log(effort))"),
-  collapse = ""
-)
-null_formula <- paste(
-  c("poly(crp_ar, 1, raw = T) + ",
-    "poly(grass_ar, 1, raw = T) + ",
-    "poly(shrub_ar, 1, raw = T) + ",
-    "poly(mat, 1, raw = T) + ",
-    "poly(map, 1, raw = T) + ",
-    "offset(log(effort))"),
-  collapse = ""
-)
-distance_models$grro$null_model <- fit_gdistsamp(
-  lambdas = null_formula,
-  umdf = distance_models$grro$umdf,
-  mixture = "NB"
-)
-distance_models$grro$full_model_imbcr_covs <- fit_gdistsamp(
-  lambdas = full_model_formula_imbcr_covs,
-  umdf = distance_models$grro$umdf,
-  mixture = "NB"
-)
-distance_models$grro$full_model_morap_covs <- fit_gdistsamp(
-  lambdas = full_model_formula_morap_covs,
-  umdf = drop_na_transects(distance_models$grro$umdf),
-  mixture = "NB"
-)
-distance_models$grro$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
-  distance_models$grro$full_model_imbcr_covs
-)
-distance_models$grro$intercept_model_morap_covs <- fit_gdistsamp_intercept(
-  distance_models$grro$full_model_morap_covs
-)
-distance_models$grro$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
-  formula = full_model_formula_imbcr_covs,
-  bird_data = distance_models$grro$umdf,
-  replace = T,
-  n = 154,
-  m_scale = m_scale,
-  type = "gdistsamp"
-)
-distance_models$grro$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
-  formula = full_model_formula_morap_covs,
-  bird_data = drop_na_transects(distance_models$grro$umdf),
-  replace = T,
-  n = 84,
-  m_scale = m_scale,
-  type = "gdistsamp"
-)
 distance_models$grro$cohens_d_n_154 <- bs_est_cohens_d_power(
   formula = full_model_formula_imbcr_covs,
   bird_data = distance_models$grro$umdf,
@@ -2109,3 +2063,5 @@ distance_models$losh$cohens_f_n_720 <- bs_est_cohens_f_power(
   bird_data = distance_models$losh$umdf,
   m_scale = m_scale
 )
+
+save.image(paste("power_analysis_workflow_", as.character(cut(Sys.Date(), "month")), ".rdata", collapse="", sep=""), compress=T)
