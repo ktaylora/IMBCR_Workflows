@@ -35,10 +35,9 @@ est_deviance <- function(m, method="residuals"){
 est_pseudo_rsquared <- function(m=NULL, method="deviance") {
   if ( inherits(m, "unmarkedFit") ) {
     df <- m@data
-    intercept_m <- try(update(
+    intercept_m <- try(unmarked::update(
       m,
-      "~1",
-      "~1"
+      as.formula("~1~1"),
       data = df,
       se=F
     ))
