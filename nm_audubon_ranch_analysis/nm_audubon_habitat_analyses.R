@@ -263,3 +263,5 @@ ranch_status_adj_removal_m <- unmarked::multinomPois(
   se = T,
   umdf
 )
+
+( est_deviance(intercept_adj_removal_m) - est_deviance(ranch_status_adj_removal_m) ) / est_deviance(intercept_adj_removal_m)
