@@ -139,7 +139,7 @@ calc_pooled_cluster_count_by_transect <- function(
             counts <- sapply(
               X = unique(this_transect$timeperiod),
               FUN = function(minute_period){
-                return(sum(this_transect[ match , 'cl_count'], na.rm = T))
+                return(sum(this_transect[ match & this_transect$timeperiod == minute_period, 'cl_count'], na.rm = T))
               }
             )
             names(counts) <- as.numeric(unique(this_transect$timeperiod))
@@ -178,20 +178,22 @@ fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det
     raw_transect_data, 
     four_letter_code = BIRD_CODE
   )
-  # estimate effort and calculate our distance bins
+  # estimate effort and calculate our distance bins and dummy covariates on 
+  # detection and abundance
+  year <- distance_detections$year[!duplicated(distance_detections$transectnum)]
   effort <- as.vector(OpenIMBCR:::calc_transect_effort(distance_detections))
-  distance_detections <- OpenIMBCR:::calc_dist_bins(distance_detections)
+  y <- OpenIMBCR:::calc_dist_bins(distance_detections)
   # build an unmarked data.frame with a column for effort
   umdf <- unmarked::unmarkedFrameDS(
-    y = as.matrix(distance_detections$y),
-    siteCovs = data.frame(effort = effort),
-    dist.breaks = distance_detections$breaks,
+    y = as.matrix(y$y),
+    siteCovs = data.frame(effort = effort, year=year),
+    dist.breaks = y$breaks,
     survey = "point",
     unitsIn = "m"
   )
   # model specification
   intercept_distance_m <- unmarked::distsamp(
-    formula = ~1 ~1+offset(log(effort)),
+    formula = ~1 ~as.factor(year) + offset(log(effort)),
     data = umdf,
     se = T,
     keyfun = "halfnorm",
@@ -201,8 +203,7 @@ fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det
   # verify our detection function visually?
   if (verify_det_curve) { 
     OpenIMBCR:::plot_hn_det(
-      intercept_distance_m, 
-      breaks = distance_detections$breaks
+      intercept_distance_m
     )
   }
   # return to user
