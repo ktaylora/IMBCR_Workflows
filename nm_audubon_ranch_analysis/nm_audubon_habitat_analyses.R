@@ -1,7 +1,20 @@
-argv <- commandArgs(trailingOnly = T)
-# calculate a fitted poisson regression deviance statistic,
-# e.g., : https://goo.gl/KdEUUa
+# 
+# RUNTIME ARGUMENTS
+#
+
+ARGV = commandArgs(trailingOnly = T)
+MAXIMUM_DISTANCE_QUANTILE = 0.9 # censor observations that are way out in the shoulder
+BIRD_CODE = ifelse(is.null(ARGV[1]), "WEME", toupper(ARGV[1]))
+
+#
+# LOCAL FUNCTIONS
+#
+
+#' calculate a deviance statistic from a count (Poisson) model,
+#' e.g., : https://goo.gl/KdEUUa
+#' @export
 est_deviance <- function(m, method="residuals"){
+  # by default, use model residual error to estimate deviance
   if (grepl(tolower(method), pattern = "resid")) {
     if ( inherits(m, "unmarkedFit") ) {
       observed <- unmarked::getY(m@data)
@@ -14,6 +27,10 @@ est_deviance <- function(m, method="residuals"){
     } else {
       return(NA)
     }
+  # alternatively, use the log-likelihood value returned from our optimization
+  # from unmarked. This approach is advocated by B. Bolker, but the likelihood
+  # values returned from hierarchical models can look strange. Use this 
+  # with caution.
   } else if (grepl(tolower(method), pattern = "likelihood")) {
     if ( inherits(m, "unmarkedFit") ) {
       return(2*as.numeric(abs(m@negLogLik)))
@@ -24,13 +41,13 @@ est_deviance <- function(m, method="residuals"){
     }
   }
 }
-#' estimate McFadden's pseudo r-squared
-#' Note that this function will work with model objects fit with glm() in 'R',
-#' but is primarily intended to work with model objects fit using the 'unmarked'
-#' R package. There is some fairly-involved exception handling that has gone
-#' into working with AIC and negative log-likelihood values reported by
-#' unmarked that should give you pause. I try to be as verbose as I can
-#' with warnings when I fudge numbers reported by unmarked models.
+#' estimate mcfadden's pseudo r-squared. Note that this function will work with 
+#' model objects fit with glm() in 'R', but that it is primarily intended to 
+#' work with model objects fit using the 'unmarked' R package. There is some 
+#' exception handling that has gone into working with AIC and negative 
+#' log-likelihood values reported by unmarked that should give you pause. 
+#' I try to be as verbose as I can with warnings when I fudge numbers reported 
+#' by unmarked models.
 #' @export
 est_pseudo_rsquared <- function(m=NULL, method="deviance") {
   if ( inherits(m, "unmarkedFit") ) {
@@ -91,7 +108,7 @@ calc_pooled_cluster_count_by_transect <- function(
     X = transects,
     FUN = function(transect){
       this_transect <- imbcr_df[imbcr_df$transectnum == transect, ]
-      # bug-fix : drop 88 codes here
+      # bug-fix : drop 88 codes here (fly-over before sampling began)
       this_transect <- this_transect[ this_transect$timeperiod != 88 , ]
       years <- unique(this_transect$year)
       # cast an empty array to use for our removal counts, one row
@@ -132,83 +149,93 @@ calc_pooled_cluster_count_by_transect <- function(
           removal_matrix[ i, as.numeric(names(counts))] <- counts
         } 
       }
+      # return a named list for THIS that we can rbind later
       return(list(
         y = removal_matrix, 
         data=data.frame(transectnum = transect, year = years, effort = offset)
       ))
     }
   )
+  # clean-up our list-of-lists and return to user
   return(list(
     y = do.call(rbind, lapply(ret, FUN=function(x) x$y)),
     data = do.call(rbind, lapply(ret, FUN=function(x) x$data))
   ))
 }
 #' use a half-normal distance function fit in unmarked to adjust our count observations
+#' @export
 pred_hn_det_from_distance <- function(x=NULL, dist=NULL){
   param <- exp(unmarked::coef(x, type = "det"))
   return(as.vector(unmarked:::gxhn(x = dist, param)))
 }
+#' Fit an intercept-only distance model in unmarked (with adjustments for effort) 
+#' and return the model object to the user. This is useful for extracting and
+#' predicting probability of detection values using pred_hn_det_from_distance
+#' @export
+fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det_curve=T){
+  # scrub the imbcr data.frame for our focal species
+  distance_detections <- OpenIMBCR:::scrub_imbcr_df(
+    raw_transect_data, 
+    four_letter_code = BIRD_CODE
+  )
+  # estimate effort and calculate our distance bins
+  effort <- as.vector(OpenIMBCR:::calc_transect_effort(distance_detections))
+  distance_detections <- OpenIMBCR:::calc_dist_bins(distance_detections)
+  # build an unmarked data.frame with a column for effort
+  umdf <- unmarked::unmarkedFrameDS(
+    y = as.matrix(distance_detections$y),
+    siteCovs = data.frame(effort = effort),
+    dist.breaks = distance_detections$breaks,
+    survey = "point",
+    unitsIn = "m"
+  )
+  # model specification
+  intercept_distance_m <- unmarked::distsamp(
+    formula = ~1 ~1+offset(log(effort)),
+    data = umdf,
+    se = T,
+    keyfun = "halfnorm",
+    unitsOut = "kmsq",
+    output = "abund"
+  )
+  # verify our detection function visually?
+  if (verify_det_curve) { 
+    OpenIMBCR:::plot_hn_det(
+      intercept_distance_m, 
+      breaks = distance_detections$breaks
+    )
+  }
+  # return to user
+  return(intercept_distance_m)
+}
+
 #
 # MAIN
 #
-
-MAXIMUM_DISTANCE_QUANTILE = 0.9 # censor observations that are way out in the shoulder
-BIRD_CODE = ifelse(is.null(argv[1]),"WEME", toupper(argv[1]))
 
 raw_transect_data <- rgdal::readOGR(
   "all_grids.json"
 )
 
-# treat transect-years as separate observations 
+# treat transect-years as separate site-level observations 
 raw_transect_data$transectnum <- paste(
   as.character(raw_transect_data$transectnum), 
   as.character(raw_transect_data$year), 
-  sep="-"
+  sep = "-"
 )
 
-# fit an intercept-only detection function in unmarked
-
-distance_detections <- OpenIMBCR:::scrub_imbcr_df(
-  raw_transect_data, 
-  four_letter_code = "WEME"
-)
-
-effort <- as.vector(OpenIMBCR:::calc_transect_effort(distance_detections))
-distance_detections <- OpenIMBCR:::calc_dist_bins(distance_detections)
-
-
-umdf <- unmarked::unmarkedFrameDS(
-  y = as.matrix(distance_detections$y),
-  siteCovs = data.frame(effort = effort),
-  dist.breaks = distance_detections$breaks,
-  survey = "point",
-  unitsIn = "m"
-)
-
-intercept_distance_m <- unmarked::distsamp(
-  formula = ~1 ~1+offset(log(effort)),
-  data = umdf,
-  se = T,
-  keyfun = "halfnorm",
-  unitsOut = "kmsq",
-  output = "abund"
-)
-
-# verify our detection function visually
-OpenIMBCR:::plot_hn_det(
-  intercept_distance_m, 
-  breaks = distance_detections$breaks
-)
+# fit a simple distance model that we can extract a detection function from
+intercept_distance_m <- fit_intercept_only_distance_model(raw_transect_data)
 
 # censor observations that are out in the tails of our distribution
 raw_transect_data <- 
   raw_transect_data[ 
     raw_transect_data$radialdistance <= 
-      quantile(raw_transect_data$radialdistance, p=MAXIMUM_DISTANCE_QUANTILE) , 
+      quantile(raw_transect_data$radialdistance, p = MAXIMUM_DISTANCE_QUANTILE) , 
   ] 
 
 # calculate probability of detection from radial distance observations for all 
-# birds, we will filter this down to just our focal species when we get to 
+# birds; we will filter this down to just our focal species when we get to 
 # pooling our removal data (below)
 per_obs_det_probabilities <- round(sapply(
   raw_transect_data$radialdistance,
@@ -220,14 +247,15 @@ per_obs_det_probabilities <- round(sapply(
 per_obs_det_probabilities[ per_obs_det_probabilities < 0.01 ] <- 0.01
 
 # estimate an adjusted cluster-count field value using the detection 
-# function fit above
+# function fit above. These will be our counts aggregate by minute period,
+# adjusted for imperfect (visual) detection
 raw_transect_data$cl_count <- floor(1 / per_obs_det_probabilities)
 
 # use the adjusted point counts for removal modeling
 adj_removal_detections <- calc_pooled_cluster_count_by_transect(
   imbcr_df = raw_transect_data, 
   four_letter_code = BIRD_CODE, 
-  use_cl_count_field = T
+  use_cl_count_field = T 
 )
 
 # merge our minute intervals into two-minute intervals
@@ -260,4 +288,5 @@ ranch_status_adj_removal_m <- unmarked::multinomPois(
 )
 
 # propotion of variance explained by adding our ranch covariate?
+est_pseudo_rsquared(intercept_adj_removal_m)
 est_pseudo_rsquared(ranch_status_adj_removal_m)
