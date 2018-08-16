@@ -4,7 +4,7 @@
 
 ARGV = commandArgs(trailingOnly = T)
 MAXIMUM_DISTANCE_QUANTILE = 0.9 # censor observations that are way out in the shoulder
-BIRD_CODE = ifelse(is.null(ARGV[1]), "WEME", toupper(ARGV[1]))
+BIRD_CODE = ifelse(is.na(ARGV[1]), "WEME", toupper(ARGV[1]))
 
 #
 # LOCAL FUNCTIONS
@@ -213,6 +213,14 @@ fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det
 # MAIN
 #
 
+r_data_file <- tolower(paste(
+  tolower(ARGV[1]),
+  "_imbcr_hinge_modeling_workflow_",
+  gsub(format(Sys.time(), "%b %d %Y"), pattern = " ", replacement = "_"),
+  ".rdata",
+  sep = ""
+))
+
 raw_transect_data <- rgdal::readOGR(
   "all_grids.json"
 )
@@ -290,3 +298,9 @@ ranch_status_adj_removal_m <- unmarked::multinomPois(
 # propotion of variance explained by adding our ranch covariate?
 est_pseudo_rsquared(intercept_adj_removal_m)
 est_pseudo_rsquared(ranch_status_adj_removal_m)
+
+save(
+  compress=T,
+  list=ls(),
+  file=r_data_file
+)
