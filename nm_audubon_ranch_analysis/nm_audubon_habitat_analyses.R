@@ -239,9 +239,7 @@ adj_removal_detections$y <- cbind(
 
 # tack-on a categorical "ranch status" variable to use for the modeling
 adj_removal_detections$data$ranch_status <- 
-  as.factor(
-    letters[ as.numeric(grepl(adj_removal_detections$data$transectnum, pattern="RANCH"))+1 ]
-  )
+  as.numeric(grepl(adj_removal_detections$data$transectnum, pattern="RANCH")) 
 
 umdf <- unmarked::unmarkedFrameMPois(
   y = adj_removal_detections$y, 
@@ -250,13 +248,13 @@ umdf <- unmarked::unmarkedFrameMPois(
 )
 
 intercept_adj_removal_m <- unmarked::multinomPois(
-  ~1 ~ offset(log(effort)), 
+  ~1 ~ as.factor(year) + offset(log(effort)), 
   se = T,
   umdf
 )
 
 ranch_status_adj_removal_m <- unmarked::multinomPois(
-  ~1 ~ as.factor(ranch_status) + offset(log(effort)), 
+  ~1 ~ as.factor(ranch_status) + as.factor(year) + offset(log(effort)), 
   se = T,
   umdf
 )
