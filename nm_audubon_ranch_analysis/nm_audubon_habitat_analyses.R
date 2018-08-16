@@ -299,8 +299,14 @@ ranch_status_adj_removal_m <- unmarked::multinomPois(
 )
 
 # propotion of variance explained by adding our ranch covariate?
-est_pseudo_rsquared(intercept_adj_removal_m)
-est_pseudo_rsquared(ranch_status_adj_removal_m)
+cat(" -- null model r-squared:", 
+    est_pseudo_rsquared(intercept_adj_removal_m),
+    "\n"
+)
+cat(" -- alternative model r-squared:", 
+    est_pseudo_rsquared(ranch_status_adj_removal_m),
+    "\n"
+)
 
 save(
   compress = T,
