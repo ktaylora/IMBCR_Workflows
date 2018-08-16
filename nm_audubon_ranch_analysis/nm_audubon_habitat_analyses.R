@@ -214,7 +214,7 @@ fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det
 #
 
 r_data_file <- tolower(paste(
-  tolower(ARGV[1]),
+  tolower(BIRD_CODE),
   "_imbcr_hinge_modeling_workflow_",
   gsub(format(Sys.time(), "%b %d %Y"), pattern = " ", replacement = "_"),
   ".rdata",
@@ -300,7 +300,7 @@ est_pseudo_rsquared(intercept_adj_removal_m)
 est_pseudo_rsquared(ranch_status_adj_removal_m)
 
 save(
-  compress=T,
-  list=ls(),
-  file=r_data_file
+  compress = T,
+  list = ls(),
+  file = r_data_file
 )
