@@ -132,7 +132,7 @@ calc_pooled_cluster_count_by_transect <- function(
           # pool counts across minute periods for all stations sampled. Should
           # we use the cluster count field? If not, assume each detection
           # is a '1'
-          if (!use_cl_count) {
+          if (!use_cl_count_field) {
             counts <- table(this_transect[ match , 'timeperiod'])
           # if we are using cluster counts, sum all counts by minute-period
           } else {
@@ -172,7 +172,7 @@ pred_hn_det_from_distance <- function(x=NULL, dist=NULL){
 #' and return the model object to the user. This is useful for extracting and
 #' predicting probability of detection values using pred_hn_det_from_distance
 #' @export
-fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det_curve=T){
+fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det_curve=F){
   # scrub the imbcr data.frame for our focal species
   distance_detections <- OpenIMBCR:::scrub_imbcr_df(
     raw_transect_data, 
@@ -213,6 +213,8 @@ fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det
 # MAIN
 #
 
+require(unmarked)
+
 r_data_file <- tolower(paste(
   tolower(BIRD_CODE),
   "_imbcr_hinge_modeling_workflow_",
@@ -222,7 +224,8 @@ r_data_file <- tolower(paste(
 ))
 
 raw_transect_data <- rgdal::readOGR(
-  "all_grids.json"
+  "all_grids.json",
+  verbose=F
 )
 
 # treat transect-years as separate site-level observations 
@@ -247,7 +250,7 @@ raw_transect_data <-
 # pooling our removal data (below)
 per_obs_det_probabilities <- round(sapply(
   raw_transect_data$radialdistance,
-  function(x) pred_hn_det_from_distance(intercept_m, dist=x)),
+  function(x) pred_hn_det_from_distance(intercept_distance_m, dist=x)),
   2
 )
 
