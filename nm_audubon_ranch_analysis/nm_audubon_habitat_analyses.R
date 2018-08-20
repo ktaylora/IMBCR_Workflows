@@ -216,36 +216,24 @@ fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det
 
 require(unmarked)
 
-r_data_file <- tolower(paste(
-  tolower(BIRD_CODE),
-  "_imbcr_hinge_modeling_workflow_",
-  gsub(format(Sys.time(), "%b %d %Y"), pattern = " ", replacement = "_"),
-  ".rdata",
-  sep = ""
-))
-
 raw_transect_data <- rgdal::readOGR(
   "all_grids.json",
   verbose=F
 )
-
 # treat transect-years as separate site-level observations 
 raw_transect_data$transectnum <- paste(
   as.character(raw_transect_data$transectnum), 
   as.character(raw_transect_data$year), 
   sep = "-"
 )
-
 # fit a simple distance model that we can extract a detection function from
 intercept_distance_m <- fit_intercept_only_distance_model(raw_transect_data)
-
 # censor observations that are out in the tails of our distribution
 raw_transect_data <- 
   raw_transect_data[ 
     raw_transect_data$radialdistance <= 
       quantile(raw_transect_data$radialdistance, p = MAXIMUM_DISTANCE_QUANTILE) , 
   ] 
-
 # calculate probability of detection from radial distance observations for all 
 # birds; we will filter this down to just our focal species when we get to 
 # pooling our removal data (below)
@@ -254,8 +242,9 @@ per_obs_det_probabilities <- round(sapply(
   function(x) pred_hn_det_from_distance(intercept_distance_m, dist=x)),
   2
 )
-
-# bug-fix : divide by zero
+# bug-fix : don't divide by zero -- this shouldn't be needed, because of 
+# our censoring the right-tail of our distance observations; but it's here
+# just in-case
 per_obs_det_probabilities[ per_obs_det_probabilities < 0.01 ] <- 0.01
 
 # estimate an adjusted cluster-count field value using the detection 
@@ -298,7 +287,6 @@ ranch_status_adj_removal_m <- unmarked::multinomPois(
   se = T,
   umdf
 )
-
 # propotion of variance explained by adding our ranch covariate?
 cat(" -- null model r-squared:", 
     est_pseudo_rsquared(intercept_adj_removal_m),
@@ -308,7 +296,108 @@ cat(" -- alternative model r-squared:",
     est_pseudo_rsquared(ranch_status_adj_removal_m),
     "\n"
 )
-
+# add-in our habitat covariates, calculated by-grid unit
+usng_units <- OpenIMBCR:::readOGRfromPath(
+  paste("/home/ktaylora/Projects/nm_audubon_habitat_modeling/study_",
+  "region_convex_hull_usng_units.shp", sep="")
+)
+all_imbcr_transects <- OpenIMBCR:::readOGRfromPath(
+  paste("/home/ktaylora/Projects/nm_audubon_habitat_modeling/all_",
+  "transects_for_mapping.shp", sep="")
+)
+# spatial join the 1-km2 USNG grid units with the IMBCR transects
+# we are using for our analysis
+transect_usng_units <- OpenIMBCR:::spatial_join(
+  usng_units, 
+  all_imbcr_transects
+)
+# 2016 NASS-CDL is consistent with when sampling began on Audubon ranch
+# transects
+usda_nass <- raster::raster(
+  "/gis_data/Landcover/NASS/Raster/2016_30m_cdls.tif"
+)
+# define the NASS-CDL values we are attributing as "habitat" 
+cat(" -- calculating habitat composition/configuration metrics\n")
+area_statistics <-
+  data.frame(
+      field_name=c(
+        'grass_ar',
+        'shrub_ar',
+        'wetland_ar'
+      ),
+      src_raster_value=c(
+        '176',
+        'c(64,152)',
+        'c(195,190)'
+      )
+    )
+configuration_statistics <- c(
+    'pat_ct',
+    'mn_p_ar',
+    'inp_dst'
+)
+# process our NASS-CDL composition statistics iteratively
+usda_nass_by_unit <- OpenIMBCR:::extract_by(
+  split(transect_usng_units, 1:nrow(transect_usng_units)), 
+  usda_nass
+)
+for(i in 1:nrow(area_statistics)){
+  transect_usng_units@data[, as.character(area_statistics[i, 1])] <-
+    OpenIMBCR::par_calc_stat(
+      # using our 1-km2 USNG unit extractions
+      X=usda_nass_by_unit,
+      fun = OpenIMBCR::calc_total_area,
+      # using these NASS_CDL landcover cell values in the reclassification
+      from = eval(parse(text=as.character(area_statistics[i, 2])))
+    )
+}
+# ditto for configuration statistics
+cat(" -- building a habitat/not-habitat raster surface\n")
+valid_habitat_values <- eval(parse(
+    text=paste("c(",paste(area_statistics$src_raster_value[
+      !grepl(area_statistics$field_name, pattern="rd_ar")
+    ], collapse = ","), ")", sep="")
+))
+cat(" -- calculating patch configuration metrics\n")
+transect_usng_units@data[, as.character(configuration_statistics[1])] <-
+  OpenIMBCR::par_calc_stat(
+      # using our 1-km2 USNG unit extractions
+      usda_nass_by_unit,
+      # parse the focal landscape configuration metric
+      fun = OpenIMBCR::calc_patch_count,
+      # using these NASS-CDL landcover cell values
+      # reclassification
+      from = valid_habitat_values
+    )
+transect_usng_units@data[, as.character(configuration_statistics[2])] <-
+  OpenIMBCR::par_calc_stat(
+    # using our 1-km2 USNG unit extractions
+    usda_nass_by_unit,
+    # mean patch area function:
+    fun = OpenIMBCR::calc_mean_patch_area,
+    # using these NASS-CDL landcover cell values 
+    # reclassification
+    from = valid_habitat_values
+  )
+transect_usng_units@data[, as.character(configuration_statistics[3])] <-
+  OpenIMBCR::par_calc_stat(
+    # using our 1-km2 USNG unit extractions
+    usda_nass_by_unit,
+    # mean inter-patch distance function:
+    fun = OpenIMBCR::calc_interpatch_distance,
+    # using these NASS-CDL landcover cell values in the reclassification
+    # reclassification
+    from = valid_habitat_values,
+    backfill_missing_w=9999
+)
+# flush our session to disk and exit
+r_data_file <- tolower(paste(
+  tolower(BIRD_CODE),
+  "_imbcr_hinge_modeling_workflow_",
+  gsub(format(Sys.time(), "%b %d %Y"), pattern = " ", replacement = "_"),
+  ".rdata",
+  sep = ""
+))
 save(
   compress = T,
   list = ls(),
