@@ -3,7 +3,7 @@
 #
 
 ARGV = commandArgs(trailingOnly = T)
-MAXIMUM_DISTANCE_QUANTILE = 0.9 # censor observations that are way out in the shoulder
+MAXIMUM_DISTANCE_QUANTILE = 0.9 # censor observations out in the right-tail
 BIRD_CODE = ifelse(is.na(ARGV[1]), "WEME", toupper(ARGV[1]))
 
 #
