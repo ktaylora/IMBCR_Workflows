@@ -220,12 +220,17 @@ raw_transect_data <- rgdal::readOGR(
   "all_grids.json",
   verbose=F
 )
+
+FOCAL_TRANSECTS <- as.character(raw_transect_data$transectnum)
+YEAR_SAMPLED <- as.character(raw_transect_data$year)
+
 # treat transect-years as separate site-level observations 
 raw_transect_data$transectnum <- paste(
-  as.character(raw_transect_data$transectnum), 
-  as.character(raw_transect_data$year), 
+  FOCAL_TRANSECTS, 
+  YEAR_SAMPLED, 
   sep = "-"
 )
+
 # fit a simple distance model that we can extract a detection function from
 intercept_distance_m <- fit_intercept_only_distance_model(raw_transect_data)
 # censor observations that are out in the tails of our distribution
@@ -297,6 +302,16 @@ cat(" -- alternative model r-squared:",
     "\n"
 )
 # add-in our habitat covariates, calculated by-grid unit
+FOCAL_TRANSECTS <- sapply(
+  adj_removal_detections$data$transectnum, 
+  FUN=function(x) paste(unlist(strsplit(as.character(x), split="-"))[1:3], collapse="-") 
+)
+
+YEAR_SAMPLED <- sapply(
+  adj_removal_detections$data$transectnum, 
+  FUN=function(x) unlist(strsplit(as.character(x), split="-"))[4] 
+)
+
 usng_units <- OpenIMBCR:::readOGRfromPath(
   paste("/home/ktaylora/Projects/nm_audubon_habitat_modeling/study_",
   "region_convex_hull_usng_units.shp", sep="")
@@ -311,6 +326,13 @@ transect_usng_units <- OpenIMBCR:::spatial_join(
   usng_units, 
   all_imbcr_transects
 )
+# select for transects used in our original dataset -- some transects
+# are sampled more than one year
+match <- as.vector(unlist(sapply(
+  FOCAL_TRANSECTS, 
+  FUN=function(transect) min(which(as.character(transect_usng_units$trnsctn) == transect))))
+)
+transect_usng_units <- transect_usng_units[ match , ]
 # 2016 NASS-CDL is consistent with when sampling began on Audubon ranch
 # transects
 usda_nass <- raster::raster(
@@ -390,6 +412,36 @@ transect_usng_units@data[, as.character(configuration_statistics[3])] <-
     from = valid_habitat_values,
     backfill_missing_w=9999
 )
+# fit our habitat model
+
+# these are the columns that we are going to merge-in for exposure to 
+# our models
+cols <- c("grass_ar","shrub_ar","wetland_ar","pat_ct","mn_p_ar","inp_dst")
+transect_usng_units@data <- transect_usng_units@data[,cols]
+transect_usng_units@data <- m_scale <- scale(transect_usng_units@data)
+
+# merge-in our data.frame of site-covs
+adj_removal_detections$data <- cbind(
+  adj_removal_detections$data, 
+  transect_usng_units@data[,cols]
+)
+
+umdf <- unmarked::unmarkedFrameMPois(
+  y = adj_removal_detections$y, 
+  siteCovs = adj_removal_detections$data,
+  type = "removal"
+)
+
+full_model_formula <- paste(
+    "~1 ~grass_ar+shrub_ar+pat_ct+as.factor(year)+as.factor(ranch_status)+offset(log(effort))"
+  )
+  
+full_model_ranch_status_adj_removal_m <- unmarked::multinomPois(
+  as.formula(full_model_formula), 
+  se = T,
+  umdf
+)
+
 # flush our session to disk and exit
 r_data_file <- tolower(paste(
   tolower(BIRD_CODE),
