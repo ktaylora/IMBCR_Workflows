@@ -215,6 +215,8 @@ fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det
 #
 
 require(unmarked)
+require(OpenIMBCR)
+require(raster)
 
 raw_transect_data <- rgdal::readOGR(
   "all_grids.json",
@@ -355,23 +357,19 @@ area_statistics <-
     )
 configuration_statistics <- c(
     'pat_ct',
-    'mn_p_ar',
-    'inp_dst'
 )
 # process our NASS-CDL composition statistics iteratively
 usda_nass_by_unit <- OpenIMBCR:::extract_by(
-  split(transect_usng_units, 1:nrow(transect_usng_units)), 
+  lapply(1:nrow(transect_usng_units), FUN=function(i) transect_usng_units[i,]), 
   usda_nass
 )
 for(i in 1:nrow(area_statistics)){
+  focal <- OpenIMBCR:::binary_reclassify(
+    usda_nass_by_unit, 
+    from=eval(parse(text=as.character(area_statistics[i, 2]))) 
+  )
   transect_usng_units@data[, as.character(area_statistics[i, 1])] <-
-    OpenIMBCR::par_calc_stat(
-      # using our 1-km2 USNG unit extractions
-      X=usda_nass_by_unit,
-      fun = OpenIMBCR::calc_total_area,
-      # using these NASS_CDL landcover cell values in the reclassification
-      from = eval(parse(text=as.character(area_statistics[i, 2])))
-    )
+    sapply(X=focal, FUN=OpenIMBCR:::calc_total_area)
 }
 # ditto for configuration statistics
 cat(" -- building a habitat/not-habitat raster surface\n")
@@ -381,42 +379,21 @@ valid_habitat_values <- eval(parse(
     ], collapse = ","), ")", sep="")
 ))
 cat(" -- calculating patch configuration metrics\n")
-transect_usng_units@data[, as.character(configuration_statistics[1])] <-
-  OpenIMBCR::par_calc_stat(
-      # using our 1-km2 USNG unit extractions
-      usda_nass_by_unit,
-      # parse the focal landscape configuration metric
-      fun = OpenIMBCR::calc_patch_count,
-      # using these NASS-CDL landcover cell values
-      # reclassification
-      from = valid_habitat_values
-    )
-transect_usng_units@data[, as.character(configuration_statistics[2])] <-
-  OpenIMBCR::par_calc_stat(
-    # using our 1-km2 USNG unit extractions
-    usda_nass_by_unit,
-    # mean patch area function:
-    fun = OpenIMBCR::calc_mean_patch_area,
-    # using these NASS-CDL landcover cell values 
-    # reclassification
-    from = valid_habitat_values
-  )
-transect_usng_units@data[, as.character(configuration_statistics[3])] <-
-  OpenIMBCR::par_calc_stat(
-    # using our 1-km2 USNG unit extractions
-    usda_nass_by_unit,
-    # mean inter-patch distance function:
-    fun = OpenIMBCR::calc_interpatch_distance,
-    # using these NASS-CDL landcover cell values in the reclassification
-    # reclassification
-    from = valid_habitat_values,
-    backfill_missing_w=9999
+
+focal <- OpenIMBCR:::binary_reclassify(
+  usda_nass_by_unit, 
+  from=valid_habitat_values
 )
+
+transect_usng_units@data[, as.character(configuration_statistics[1])] <-
+  unlist(sapply(X=focal, FUN=OpenIMBCR:::calc_patch_count))
+
+
 # fit our habitat model
 
 # these are the columns that we are going to merge-in for exposure to 
 # our models
-cols <- c("grass_ar","shrub_ar","wetland_ar","pat_ct","mn_p_ar","inp_dst")
+cols <- c("grass_ar","shrub_ar","wetland_ar","pat_ct")
 transect_usng_units@data <- transect_usng_units@data[,cols]
 transect_usng_units@data <- m_scale <- scale(transect_usng_units@data)
 
