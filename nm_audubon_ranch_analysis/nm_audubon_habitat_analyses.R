@@ -356,7 +356,7 @@ area_statistics <-
       )
     )
 configuration_statistics <- c(
-    'pat_ct',
+    'pat_ct'
 )
 # process our NASS-CDL composition statistics iteratively
 usda_nass_by_unit <- OpenIMBCR:::extract_by(
@@ -395,7 +395,8 @@ transect_usng_units@data[, as.character(configuration_statistics[1])] <-
 # our models
 cols <- c("grass_ar","shrub_ar","wetland_ar","pat_ct")
 transect_usng_units@data <- transect_usng_units@data[,cols]
-transect_usng_units@data <- m_scale <- scale(transect_usng_units@data)
+m_scale <- scale(transect_usng_units@data)
+transect_usng_units@data <- data.frame(scale(transect_usng_units@data))
 
 # merge-in our data.frame of site-covs
 adj_removal_detections$data <- cbind(
