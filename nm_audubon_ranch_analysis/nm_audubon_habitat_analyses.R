@@ -70,6 +70,221 @@ est_cohens_f_power <- function(m_0=NULL, m_1=NULL, alpha=0.05)
   )
   return(list(power = power))
 }
+#' bs_est_cohens_f_power
+#' a bootstrapped implementation of the Cohens (1988) f-squared test
+bs_est_cohens_f_power <- function(
+  m_0_formula=NULL,
+  m_1_formula=NULL,
+  bird_data=NULL,
+  n=154,
+  replace=T,
+  m_scale=NULL,
+  type="gdistsamp")
+{
+  # is this a standard glm?
+  if (grepl(tolower(type), pattern = "glm")) {
+    return(NA)
+    # are we fitting a hierarchical model?
+  } else if (grepl(tolower(type), pattern = "gdistsamp")) {
+    # set-up our workspace for a parallelized operation
+    cl <- parallel::makeCluster(parallel::detectCores() - 1)
+    parallel::clusterExport(
+      cl,
+      varlist = c("downsample_transects_by", "est_deviance", "shuffle",
+                  "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
+                  "est_residual_sse","N_BS_REPLICATES", "backscale_var",
+                  "est_cohens_f_power"),
+      envir = globalenv()
+    )
+    parallel::clusterExport(
+      cl,
+      varlist = c("bird_data","n","replace","m_0_formula","m_1_formula","m_scale"),
+      envir = environment()
+    )
+    # parallelize our cohen's d bootstrap operation
+    cohens_f_n <- unlist(parallel::parLapply(
+      cl = cl,
+      X = 1:N_BS_REPLICATES,
+      fun = function(i) {
+        # balance our transects and resample (with replacement) how ever
+        # many rows are needed to satisfy our parameter n
+        bird_data <- shuffle(bird_data, n = n, replace = replace)
+        m_0 <- try(unmarked::gdistsamp(
+          pformula = as.formula("~1"),
+          lambdaformula = as.formula(paste("~", unlist(m_0_formula), sep = "")),
+          phiformula = as.formula("~1"),
+          data = bird_data,
+          se = F,
+          K = max(rowSums(bird_data@y)),
+          keyfun = "halfnorm",
+          unitsOut = "kmsq",
+          mixture = "NB",
+          output = "abund",
+          method = "Nelder-Mead"
+        ))
+        m_1 <- try(unmarked::gdistsamp(
+          pformula = "~1",
+          lambdaformula = paste("~", unlist(m_1_formula), collapse = ""),
+          phiformula = "~1",
+          data = bird_data,
+          se = F,
+          K = max(rowSums(bird_data@y)),
+          keyfun = "halfnorm",
+          unitsOut = "kmsq",
+          mixture = "NB",
+          output = "abund",
+          method = "Nelder-Mead"
+        ))
+        if (class(m_0) == "try-error" || class(m_1) == "try-error") {
+          return(NA)
+        } else {
+          return(est_cohens_f_power(m_0 = m_0, m_1 = m_1)$power)
+        }
+      }
+    ))
+    parallel::stopCluster(cl);
+    rm(cl);
+    # check for normality
+    if ( round(abs(median(cohens_f_n, na.rm=T) - mean(cohens_f_n, na.rm=T)), 2) != 0 ) {
+      warning("cohen's d statistic looks skewed")
+    }
+    return(round(mean(cohens_f_n, na.rm = T), 2))
+  }
+}
+#' a bootstrapped implementation of the Cohen's (1988) D test
+bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=154,
+                                  replace=T, m_scale=NULL, type="gdistsamp") {
+  # is this a standard glm?
+  if (grepl(tolower(type), pattern = "glm")) {
+    return(NA)
+    # are we fitting a hierarchical model?
+  } else if (grepl(tolower(type), pattern = "gdistsamp")) {
+    # set-up our workspace for a parallelized operation
+    cl <- parallel::makeCluster(parallel::detectCores() - 1)
+    parallel::clusterExport(
+      cl,
+      varlist = c("downsample_transects_by", "shuffle",
+                "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
+                "est_residual_sse","N_BS_REPLICATES", "backscale_var",
+                "est_cohens_d_power"),
+      envir = globalenv()
+    )
+    parallel::clusterExport(
+      cl,
+      varlist = c("bird_data","n","replace","formula","m_scale"),
+      envir = environment()
+    )
+    # parallelize our cohen's d bootstrap operation
+    cohens_d_n <- unlist(parallel::parLapply(
+      cl = cl,
+      X = 1:N_BS_REPLICATES,
+      fun = function(i) {
+        bird_data <- shuffle(bird_data, n = n, replace = replace)
+        m <- try(unmarked::gdistsamp(
+          pformula = as.formula("~1"),
+          lambdaformula = as.formula(paste("~", unlist(formula), sep = "")),
+          phiformula = as.formula("~1"),
+          data = bird_data,
+          se = T,
+          K = max(rowSums(bird_data@y)),
+          keyfun = "halfnorm",
+          unitsOut = "kmsq",
+          mixture = "NB",
+          output = "abund",
+          method = "Nelder-Mead"
+        ))
+        if (class(m) == "try-error") {
+          return(NA)
+        } else {
+          return(est_cohens_d_power(m, report = F)$power)
+        }
+      }
+    ))
+    parallel::stopCluster(cl);
+    rm(cl);
+    # check for normality
+    if ( round(abs(median(cohens_d_n, na.rm=T) - mean(cohens_d_n, na.rm=T)), 2) != 0 ) {
+      warning("cohen's d statistic looks skewed")
+    }
+    return(round(mean(cohens_d_n, na.rm = T), 2))
+  }
+}
+#' bs_est_pseudo_rsquared . This is a bootstrapped implementation of our
+#' mcfadden's pseudo r squared estimator. It is very much in testing.
+#' @export
+bs_est_pseudo_rsquared <- function(
+  formula=NULL,
+  type="gdistsamp",
+  bird_data=NULL,
+  n=NULL,
+  m_scale=NULL,
+  replace=T,
+  method="deviance"
+  ) {
+    # is this a standard glm?
+    if (grepl(tolower(type), pattern = "glm")) {
+      bird_data <- shuffle(bird_data, n = n, replace = replace)
+      pseudo_r_squared_n <- sapply(
+        X=1:N_BS_REPLICATES,
+        FUN=function(i) {
+            m <- glm(
+                formula = formula,
+                data = bird_data,
+                family = poisson()
+            );
+            return(est_pseudo_rsquared(m, method=method))
+        }
+      )
+    # are we fitting a hierarchical model?
+    } else if (grepl(tolower(type), pattern = "gdistsamp")) {
+      cl <- parallel::makeCluster(parallel::detectCores() - 1)
+      parallel::clusterExport(
+        cl,
+        varlist = c("downsample_transects_by", "est_deviance", "shuffle",
+                  "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
+                  "est_residual_sse","N_BS_REPLICATES", "backscale_var"),
+        envir = globalenv()
+      )
+      parallel::clusterExport(
+        cl,
+        varlist = c("bird_data", "n", "replace","formula","m_scale", "method"),
+        envir = environment()
+      )
+      # parallelize our r-squared bootstrap operation
+      pseudo_r_squared_n <- unlist(parallel::parLapply(
+        cl = cl,
+        X = 1:N_BS_REPLICATES,
+        fun = function(i) {
+            # balance our transects and resample (with replacement) how ever
+            # many rows are needed to satisfy our parameter n
+            bird_data <- shuffle(bird_data, n = n, replace = replace)
+            m <- try(unmarked::gdistsamp(
+                  pformula = "~1",
+                  lambdaformula = paste("~", unlist(formula), collapse=""),
+                  phiformula = "~1",
+                  data = bird_data,
+                  se = T,
+                  K = max(rowSums(bird_data@y)),
+                  keyfun = "halfnorm",
+                  unitsOut = "kmsq",
+                  mixture = "NB",
+                  output = "abund",
+                  method = "Nelder-Mead"
+            ))
+            if (class(m) == "try-error") {
+              return(NA)
+            } else {
+              return(est_pseudo_rsquared(m, method = method))
+            }
+        }
+      ))
+      parallel::stopCluster(cl);
+      rm(cl);
+      return(pseudo_r_squared_n)
+    } else {
+      return(NA)
+    }
+}
 #' calculate a deviance statistic from a count (Poisson) model,
 #' e.g., : https://goo.gl/KdEUUa
 #' @export
