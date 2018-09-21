@@ -10,6 +10,62 @@ BIRD_CODE = ifelse(is.na(ARGV[1]), "WEME", toupper(ARGV[1]))
 # LOCAL FUNCTIONS
 #
 
+#' a robust estimator for residual sum-of-square error that can account for
+#' degrees of freedom in a model
+est_residual_mse <- function(m, log=T) {
+  if ( inherits(m, "unmarkedFit") ) {
+    if ( sum(is.na(m@data@siteCovs)) > 0 ) {
+      warning(paste(c("NA values found in site covariates table -- degrees of",
+                "freedom estimate may be off depending on what was used",
+                "for modeling"), collapse=" "))
+    }
+    df <- length(m@data@y) - est_k_parameters(m)
+    # do we want to log-transform our residuals, e.g. to normalize Poisson data?
+    if (log) {
+      residuals <-  na.omit((abs(log(unmarked::residuals(m)^2))))
+      residuals[is.infinite(residuals)] <- 0
+    } else {
+      residuals <- na.omit(abs(unmarked::residuals(m)^2))
+    }
+    sum_sq_resid_err <- sum(colSums(residuals), na.rm = T)
+    # Mean Sum of Squares Error
+    sum_sq_resid_mse <- sum_sq_resid_err / df
+    return(sum_sq_resid_mse)
+  } else {
+    return(NA)
+  }
+}
+#' estimate the number of parameters used in a model
+est_k_parameters <- function(m=NULL) {
+  k <- 0
+  intercept_terms <- 0
+  if ( inherits(m, "unmarkedFitGDS") ) {
+    intercept_terms <- 3 # lambda, p, and dispersion
+    k <- length(unlist(strsplit(paste(as.character(m@formula),
+                                      collapse = ""), split = "[+]")))
+    if (k == 1) { # no '+' signs separating terms in the model?
+      k <- k - 1
+    }
+    k <- k + intercept_terms
+   } else if ( inherits(m, "unmarkedFitMPois") ) {
+    intercept_terms <- 2 # lambda, p
+    k <- length(unlist(strsplit(paste(as.character(m@formula),
+                                      collapse = ""), split = "[+]")))
+    if (k == 1) { # no '+' signs separating terms in the model?
+      k <- k - 1
+    }
+    k <- k + intercept_terms
+  } else if ( inherits(m, "glm") ) {
+    intercept_terms <- 1
+    k <- length(unlist(strsplit(paste(as.character(m$formula),
+                                      collapse = ""), split="[+]")))
+    if (k == 1) { # no '+' signs separating terms in the model?
+      k <- k - 1
+    }
+    k <- k + intercept_terms
+  }
+  return(k)
+}
 #' estimate power from the effect (mean - 0) and residual error of a model
 #' using Cohen's (1988) D test statistic
 #' @export
@@ -36,10 +92,19 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
     # this is: probability of obtaining a value < Z_mean(pred-0) - 1.96
     m_power <- pnorm( ((m_power[1] - 0) / m_power[2]) - z_alpha , lower.tail = T)
     m_power <- ifelse( round( m_power, 4) == 0, 1 / df, round( m_power, 4) )
+  } else if( inherits(m, "unmarkedFitMPois") ) {
+        df <- length(m@data@y) - est_k_parameters(m)
+    m_power <- colMeans(unmarked::predict(m, type = "state")) # lambda, se, ...
+    # log-scale our effect and se?
+    if (log) m_power <- log(m_power)
+    # note: using the probability distribution function for our test
+    # this is: probability of obtaining a value < Z_mean(pred-0) - 1.96
+    m_power <- pnorm( ((m_power[1] - 0) / m_power[2]) - z_alpha , lower.tail = T)
+    m_power <- ifelse( round( m_power, 4) == 0, 1 / df, round( m_power, 4) )
   }
   if (report) {
     cat(" ######################################################\n")
-    cat("  Cohen's Power Analysis\n")
+    cat("  Cohen's D Power Analysis\n")
     cat(" ######################################################\n")
     cat("  -- 1-beta (power) :", round(m_power, 4) ,"\n")
     cat("  -- significantly different than zero? :",
@@ -51,7 +116,7 @@ est_cohens_d_power <- function(m=NULL, report=T, alpha=0.05, log=T) {
 #' residual variance explained for effects sizes for a take on the f-ratio
 #' test
 #' @export
-est_cohens_f_power <- function(m_0=NULL, m_1=NULL, alpha=0.05)
+est_cohens_f_power <- function(m_0=NULL, m_1=NULL, alpha=0.05, report=F)
 {
   r_1 <- ifelse( is.numeric(m_1), m_1, est_pseudo_rsquared(m_1) )
   r_0 <- ifelse( is.numeric(m_0), m_0, est_pseudo_rsquared(m_0) )
@@ -61,14 +126,22 @@ est_cohens_f_power <- function(m_0=NULL, m_1=NULL, alpha=0.05)
   v <- length(m_1@data@y) - est_k_parameters(m_1) # degrees of freedom for alternative model
   lambda <- f_effect_size * (u + v + 1)
   # calling the f-distribution probability density function (1 - beta)
-  power <- pf(
+  m_power <- pf(
     qf(alpha, u, v, lower = FALSE),
     u,
     v,
     lambda,
     lower = FALSE
   )
-  return(list(power = power))
+    if (report) {
+    cat(" ######################################################\n")
+    cat("  Cohen's f Power Analysis\n")
+    cat(" ######################################################\n")
+    cat("  -- 1-beta (power) :", round(m_power, 4) ,"\n")
+    cat("  -- significantly different than zero? :",
+        as.character( m_power > (1 - alpha) ), "\n")
+  }
+  return(list(power = round(m_power, 4)))
 }
 #' bs_est_cohens_f_power
 #' a bootstrapped implementation of the Cohens (1988) f-squared test
@@ -76,11 +149,19 @@ bs_est_cohens_f_power <- function(
   m_0_formula=NULL,
   m_1_formula=NULL,
   bird_data=NULL,
-  n=154,
+  n_transects=NULL,
+  n_stations=NULL,
   replace=T,
   m_scale=NULL,
   type="gdistsamp")
 {
+  # if n (transects) is null, use whatever is in our dataset
+  if(is.null(n_transects)){
+    n_transects <- nrow(full_model_adj_removal_m@data@y)
+  } 
+  if(is.null(n_stations)){
+    n_stations <- median(full_model_adj_removal_m@data@siteCovs$effort)
+  }
   # is this a standard glm?
   if (grepl(tolower(type), pattern = "glm")) {
     return(NA)
@@ -704,6 +785,7 @@ full_model_adj_removal_m <- unmarked::multinomPois(
   se = T,
   umdf
 )
+
 # density
 mean_density <- median(
   unmarked::predict(full_model_adj_removal_m, type="state")[,1])

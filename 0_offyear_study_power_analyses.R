@@ -207,8 +207,7 @@ build_umdf_for_spp <- function(
   imbcr_detections <-
     OpenIMBCR:::scrub_imbcr_df(
       OpenIMBCR::imbcrTableToShapefile(path),
-      four_letter_code=four_letter_code,
-      drop_na="none"  # keep all NA values
+      four_letter_code=four_letter_code
     )
   # only consider THESE transects, if specified by user
   if (!is.null(site_covs)) {
@@ -320,6 +319,14 @@ est_k_parameters <- function(m=NULL) {
       k <- k - 1
     }
     k <- k + intercept_terms
+  } else if ( inherits(m, "unmarkedFitMPois") ) {
+    intercept_terms <- 3 # lambda, p, and dispersion
+    k <- length(unlist(strsplit(paste(as.character(m@formula),
+                                      collapse = ""), split = "[+]")))
+    if (k == 1) { # no '+' signs separating terms in the model?
+      k <- k - 1
+    }
+    k <- k + intercept_terms
   } else if ( inherits(m, "glm") ) {
     intercept_terms <- 1
     k <- length(unlist(strsplit(paste(as.character(m$formula),
@@ -331,11 +338,10 @@ est_k_parameters <- function(m=NULL) {
   }
   return(k)
 }
-
 #' a robust estimator for residual sum-of-square error that can account for
 #' degrees of freedom in a model
 est_residual_mse <- function(m, log=T) {
-  if ( inherits(m, "unmarkedFitGDS") ) {
+  if ( inherits(m, "unmarkedFit") ) {
     if ( sum(is.na(m@data@siteCovs)) > 0 ) {
       warning(paste(c("NA values found in site covariates table -- degrees of",
                 "freedom estimate may be off depending on what was used",
@@ -964,6 +970,10 @@ distance_models$scqu <- list(umdf=build_umdf_for_spp(
 ))
 distance_models$losh <- list(umdf=build_umdf_for_spp(
   four_letter_code="LOSH",
+  site_covs=bird_data
+))
+distance_models$larb <- list(umdf=build_umdf_for_spp(
+  four_letter_code="LARB",
   site_covs=bird_data
 ))
 #
@@ -2061,6 +2071,133 @@ distance_models$losh$cohens_f_n_720 <- bs_est_cohens_f_power(
   full_model_formula_imbcr_covs,
   n = 720,
   bird_data = distance_models$losh$umdf,
+  m_scale = m_scale
+)
+# LARB
+full_model_formula_imbcr_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 1, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "poly(mean_me_sh, 1, raw=T) + ",
+    "poly(mean_me_o, 1, raw=T) + ",
+    "poly(mean_ju_sh, 1, raw=T) + ",
+    "poly(mean_ju_o, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
+full_model_formula_morap_covs <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 1, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "poly(morap_me_sh, 1, raw=T) + ",
+    "poly(morap_ju_sh, 1, raw=T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
+null_formula <- paste(
+  c("poly(crp_ar, 1, raw = T) + ",
+    "poly(grass_ar, 1, raw = T) + ",
+    "poly(shrub_ar, 1, raw = T) + ",
+    "poly(mat, 1, raw = T) + ",
+    "poly(map, 1, raw = T) + ",
+    "offset(log(effort))"),
+  collapse = ""
+)
+distance_models$larb$null_model <- fit_gdistsamp(
+  lambdas = null_formula,
+  umdf = distance_models$larb$umdf,
+  mixture = "NB"
+)
+distance_models$larb$full_model_imbcr_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_imbcr_covs,
+  umdf = distance_models$larb$umdf,
+  mixture = "NB"
+)
+distance_models$larb$full_model_morap_covs <- fit_gdistsamp(
+  lambdas = full_model_formula_morap_covs,
+  umdf = drop_na_transects(distance_models$larb$umdf),
+  mixture = "NB"
+)
+distance_models$larb$intercept_model_imbcr_covs <- fit_gdistsamp_intercept(
+  distance_models$larb$full_model_imbcr_covs
+)
+distance_models$larb$intercept_model_morap_covs <- fit_gdistsamp_intercept(
+  distance_models$larb$full_model_morap_covs
+)
+distance_models$larb$pseudo_r_squared_n_154 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_imbcr_covs,
+  bird_data = distance_models$larb$umdf,
+  replace = T,
+  n = 154,
+  m_scale = m_scale,
+  type = "gdistsamp"
+)
+distance_models$larb$pseudo_r_squared_morap_n_84 <- bs_est_pseudo_rsquared(
+  formula = full_model_formula_morap_covs,
+  bird_data = drop_na_transects(distance_models$larb$umdf),
+  replace = T,
+  n = 84,
+  m_scale = m_scale,
+  type = "gdistsamp"
+)
+distance_models$larb$cohens_d_n_154 <- bs_est_cohens_d_power(
+  formula = full_model_formula_imbcr_covs,
+  bird_data = distance_models$larb$umdf,
+  n = 154,
+  replace = T,
+  m_scale = m_scale
+)
+distance_models$larb$cohens_d_n_360 <- bs_est_cohens_d_power(
+  formula = full_model_formula_imbcr_covs,
+  bird_data = distance_models$larb$umdf,
+  n = 360,
+  replace = T,
+  m_scale = m_scale
+)
+distance_models$larb$cohens_d_n_540 <- bs_est_cohens_d_power(
+  formula = full_model_formula_imbcr_covs,
+  bird_data = distance_models$larb$umdf,
+  n = 540,
+  replace = T,
+  m_scale = m_scale
+)
+distance_models$larb$cohens_d_n_720 <- bs_est_cohens_d_power(
+  formula = full_model_formula_imbcr_covs,
+  bird_data = distance_models$larb$umdf,
+  n = 720,
+  replace = T,
+  m_scale = m_scale
+)
+distance_models$larb$cohens_f_n_154 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 154,
+  bird_data = distance_models$larb$umdf,
+  m_scale = m_scale
+)
+distance_models$larb$cohens_f_n_360 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 360,
+  bird_data = distance_models$larb$umdf,
+  m_scale = m_scale
+)
+distance_models$larb$cohens_f_n_540 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 540,
+  bird_data = distance_models$larb$umdf,
+  m_scale = m_scale
+)
+distance_models$larb$cohens_f_n_720 <- bs_est_cohens_f_power(
+  null_formula,
+  full_model_formula_imbcr_covs,
+  n = 720,
+  bird_data = distance_models$larb$umdf,
   m_scale = m_scale
 )
 
