@@ -5,11 +5,59 @@
 ARGV = commandArgs(trailingOnly = T)
 MAXIMUM_DISTANCE_QUANTILE = 0.9 # censor observations out in the right-tail
 BIRD_CODE = ifelse(is.na(ARGV[1]), "WEME", toupper(ARGV[1]))
+N_BS_REPLICATES = 200
 
 #
 # LOCAL FUNCTIONS
 #
 
+#' hidden function that will shuffle and up-or-down sample an unmarked
+#' data.frame
+shuffle <- function(umdf=NULL, n=NULL, replace=T){
+  ret <- umdf
+  rows_to_keep <- 1:nrow(ret@siteCovs)
+  if (!is.null(n)) {
+    rows_to_keep <- sample(rows_to_keep, size = n, replace = replace)
+  } else {
+    rows_to_keep <- sample(rows_to_keep, replace=F)
+  }
+  ret@siteCovs <- ret@siteCovs[ rows_to_keep, ]
+  ret@y <- ret@y[ rows_to_keep , ]
+  ret@tlength <- rep(1, length(rows_to_keep))
+  return(ret)
+}
+#' will return only the first N stations in an IMBCR data.frame;
+#' this is a precursor to shuffle(), which samples all transects
+#' with replacement
+downsample_imbcr_stations <- function(imbcr_df=NULL, n=NULL, method="increasing"){
+  transects <- unique(imbcr_df$transectnum)
+  downsampled_transects <- lapply(
+    X=transects,
+    FUN=function(transect){
+      transect <- imbcr_df[imbcr_df$transectnum == transect ,]
+      # should we just take the first n stations, or sample randomly?
+      if(method=="increasing"){
+        points <- sort(unique(transect$point), decreasing=F)[1:n]
+      } else {
+        points <- sample(unique(transect$point), size=n)
+      }
+      # return the downsample for this transect 
+      # for an rbind operation
+      return(transect[transect$point %in% points,])
+    }
+  )
+  # rbind and return to user
+  return(do.call(rbind, downsampled_transects))
+}
+#' hidden shorthand function will reverse a scale() operation on a scaled data.frame,
+#' using a previously-fit m_scale scale() object
+backscale_var <- function(var=NULL, df=NULL, m_scale=NULL) {
+  return(
+      df[, var] *
+      attr(m_scale, 'scaled:scale')[var] +
+      attr(m_scale, 'scaled:center')[var]
+    )
+}
 #' a robust estimator for residual sum-of-square error that can account for
 #' degrees of freedom in a model
 est_residual_mse <- function(m, log=T) {
@@ -149,11 +197,12 @@ bs_est_cohens_f_power <- function(
   m_0_formula=NULL,
   m_1_formula=NULL,
   bird_data=NULL,
+  bird_code=NULL,
   n_transects=NULL,
   n_stations=NULL,
   replace=T,
   m_scale=NULL,
-  type="gdistsamp")
+  type="removal")
 {
   # if n (transects) is null, use whatever is in our dataset
   if(is.null(n_transects)){
@@ -162,26 +211,63 @@ bs_est_cohens_f_power <- function(
   if(is.null(n_stations)){
     n_stations <- median(full_model_adj_removal_m@data@siteCovs$effort)
   }
+  # pull our bird_data frame from a model object
+  # if it wasn't provided explicitly by the user
+  # user
+  if(is.null(bird_data)){
+    bird_data <- full_model_adj_removal_m@data@siteCovs
+  # this must be an imbcr df that needs to be parsed -- this
+  # option is only every used for a poisson removal model
+  } else {
+    umdf <- unmarked::unmarkedFrameMPois(
+      y = adj_removal_detections$y,
+      siteCovs = adj_removal_detections$data,
+      type = "removal"
+    )
+)
+  }
+  # stage for our parallel operations
+  cl <- parallel::makeCluster(parallel::detectCores() - 1)
+  parallel::clusterExport(
+    cl,
+    varlist = c("downsample_transects_by", "est_deviance", "shuffle",
+                "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
+                "est_residual_sse","N_BS_REPLICATES", "backscale_var",
+                "est_cohens_f_power"),
+    envir = globalenv()
+  )
+  # and our local variables
+  parallel::clusterExport(
+      cl,
+      varlist = c("bird_data","n_transects","n_stations",
+                  "replace","m_0_formula","m_1_formula",
+                  "m_scale"),
+      envir = environment()
+  )
   # is this a standard glm?
   if (grepl(tolower(type), pattern = "glm")) {
     return(NA)
-    # are we fitting a hierarchical model?
-  } else if (grepl(tolower(type), pattern = "gdistsamp")) {
-    # set-up our workspace for a parallelized operation
-    cl <- parallel::makeCluster(parallel::detectCores() - 1)
-    parallel::clusterExport(
-      cl,
-      varlist = c("downsample_transects_by", "est_deviance", "shuffle",
-                  "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
-                  "est_residual_sse","N_BS_REPLICATES", "backscale_var",
-                  "est_cohens_f_power"),
-      envir = globalenv()
+  # are we fitting a hierarchical removal model?
+  } else if (grepl(tolower(type), pattern = "removal")) {
+    cohens_f_n <- unlist(parallel::parLapply(
+      cl = cl,
+      X = 1:N_BS_REPLICATES,
+      fun = function(i) {
+        bird_data <- shuffle(
+          bird_data, 
+          n_transects=n_transects, 
+          n_stations=n_stations,
+          replace = replace
+        )
+      }
+    ))
+    intercept_adj_removal_m <- unmarked::multinomPois(
+      ~1 ~ as.factor(year) + offset(log(effort)),
+      se = T,
+      umdf
     )
-    parallel::clusterExport(
-      cl,
-      varlist = c("bird_data","n","replace","m_0_formula","m_1_formula","m_scale"),
-      envir = environment()
-    )
+    # are we fitting a hierarchical distance model?
+  } else if (grepl(tolower(type), pattern = "distsamp")) {
     # parallelize our cohen's d bootstrap operation
     cohens_f_n <- unlist(parallel::parLapply(
       cl = cl,
