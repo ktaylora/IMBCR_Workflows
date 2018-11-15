@@ -23,7 +23,9 @@ shuffle <- function(umdf=NULL, n=NULL, replace=T){
   }
   ret@siteCovs <- ret@siteCovs[ rows_to_keep, ]
   ret@y <- ret@y[ rows_to_keep , ]
-  ret@tlength <- rep(1, length(rows_to_keep))
+  if(class(umdf) != "unmarkedFrameMPois"){
+    ret@tlength <- rep(1, length(rows_to_keep))
+  }
   return(ret)
 }
 #' will return only the first N stations in an IMBCR data.frame;
@@ -199,47 +201,40 @@ bs_est_cohens_f_power <- function(
   bird_data=NULL,
   bird_code=NULL,
   n_transects=NULL,
-  n_stations=NULL,
   replace=T,
   m_scale=NULL,
   type="removal")
 {
   # if n (transects) is null, use whatever is in our dataset
   if(is.null(n_transects)){
-    n_transects <- nrow(full_model_adj_removal_m@data@y)
+    stop("need to specify number of transects to consider")
   } 
-  if(is.null(n_stations)){
-    n_stations <- median(full_model_adj_removal_m@data@siteCovs$effort)
-  }
   # pull our bird_data frame from a model object
   # if it wasn't provided explicitly by the user
   # user
   if(is.null(bird_data)){
-    bird_data <- full_model_adj_removal_m@data@siteCovs
-  # this must be an imbcr df that needs to be parsed -- this
-  # option is only every used for a poisson removal model
-  } else {
-    umdf <- unmarked::unmarkedFrameMPois(
-      y = adj_removal_detections$y,
-      siteCovs = adj_removal_detections$data,
-      type = "removal"
-    )
-)
+    stop("bird_data should be an unmarked data.frame, such as what is specified with the siteCovs parameter in unmarked")
+  }
+  if(is.null(m_0_formula)){
+    m_0_formula <- "~1 ~ as.factor(year) + offset(log(effort))"
+  }
+  if(is.null(m_1_formula)){
+    stop("full model formula wasn't specified -- quitting")
   }
   # stage for our parallel operations
   cl <- parallel::makeCluster(parallel::detectCores() - 1)
   parallel::clusterExport(
     cl,
-    varlist = c("downsample_transects_by", "est_deviance", "shuffle",
+    varlist = c("est_deviance", "shuffle",
                 "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
-                "est_residual_sse","N_BS_REPLICATES", "backscale_var",
+                "N_BS_REPLICATES", "backscale_var",
                 "est_cohens_f_power"),
     envir = globalenv()
   )
   # and our local variables
   parallel::clusterExport(
       cl,
-      varlist = c("bird_data","n_transects","n_stations",
+      varlist = c("bird_data","n_transects",
                   "replace","m_0_formula","m_1_formula",
                   "m_scale"),
       envir = environment()
@@ -255,20 +250,32 @@ bs_est_cohens_f_power <- function(
       fun = function(i) {
         bird_data <- shuffle(
           bird_data, 
-          n_transects=n_transects, 
-          n_stations=n_stations,
+          n = n_transects,
           replace = replace
         )
+        # fit our null model
+        m_0 <- try(unmarked::multinomPois(
+          as.formula(m_0_formula),
+          se = T,
+          bird_data
+        ))
+        # fit our alternative model
+        m_1 <- try(unmarked::multinomPois(
+          as.formula(m_1_formula),
+          se = T,
+          bird_data
+        ))
+        # esimate cohen_f
+        if (class(m_0) == "try-error" || class(m_1) == "try-error") {
+          return(NA)
+        } else {
+          return(est_cohens_f_power(m_0 = m_0, m_1 = m_1)$power)
+        }
       }
     ))
-    intercept_adj_removal_m <- unmarked::multinomPois(
-      ~1 ~ as.factor(year) + offset(log(effort)),
-      se = T,
-      umdf
-    )
     # are we fitting a hierarchical distance model?
   } else if (grepl(tolower(type), pattern = "distsamp")) {
-    # parallelize our cohen's d bootstrap operation
+    # parallelize our cohen's f bootstrap operation
     cohens_f_n <- unlist(parallel::parLapply(
       cl = cl,
       X = 1:N_BS_REPLICATES,
@@ -330,7 +337,7 @@ bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=154,
     cl <- parallel::makeCluster(parallel::detectCores() - 1)
     parallel::clusterExport(
       cl,
-      varlist = c("downsample_transects_by", "shuffle",
+      varlist = c("shuffle",
                 "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
                 "est_residual_sse","N_BS_REPLICATES", "backscale_var",
                 "est_cohens_d_power"),
@@ -407,7 +414,7 @@ bs_est_pseudo_rsquared <- function(
       cl <- parallel::makeCluster(parallel::detectCores() - 1)
       parallel::clusterExport(
         cl,
-        varlist = c("downsample_transects_by", "est_deviance", "shuffle",
+        varlist = c("est_deviance", "shuffle",
                   "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
                   "est_residual_sse","N_BS_REPLICATES", "backscale_var"),
         envir = globalenv()
@@ -537,7 +544,8 @@ est_pseudo_rsquared <- function(m=NULL, method="deviance") {
 calc_pooled_cluster_count_by_transect <- function(
   imbcr_df=NULL,
   four_letter_code=NULL,
-  use_cl_count_field=F
+  use_cl_count_field=F, 
+  limit_to_n_stations=NULL
 ){
   # what is the four-letter bird code that we will parse an IMBCR data.frame with?
   four_letter_code <- toupper(four_letter_code)
@@ -553,8 +561,15 @@ calc_pooled_cluster_count_by_transect <- function(
       # bug-fix : drop 88 codes here (fly-over before sampling began)
       this_transect <- this_transect[ this_transect$timeperiod != 88 , ]
       years <- unique(this_transect$year)
+      # do we want to limit the number of stations considered? If so, filter them now
+      if(!is.null(limit_to_n_stations)){
+        stations <- unique(this_transect$point)
+        if(length(stations) > limit_to_n_stations){
+          this_transect <- this_transect[this_transect$point %in% stations[1:limit_to_n_stations] , ]
+        }
+      }
       # cast an empty array to use for our removal counts, one row
-      # for each year in our dataset
+      # for each year and 6 minute-period in our dataset
       removal_matrix <- matrix(0, ncol = 6, nrow = length(years))
       offset <- NULL
       for (i in 1:length(years)) {
@@ -668,7 +683,7 @@ raw_transect_data <- rgdal::readOGR(
 FOCAL_TRANSECTS <- as.character(raw_transect_data$transectnum)
 YEAR_SAMPLED <- as.character(raw_transect_data$year)
 
-# treat transect-years as separate site-level observations
+# treat transect-years as independent site-level observations
 raw_transect_data$transectnum <- paste(
   FOCAL_TRANSECTS,
   YEAR_SAMPLED,
@@ -757,11 +772,11 @@ YEAR_SAMPLED <- sapply(
 )
 
 usng_units <- OpenIMBCR:::readOGRfromPath(
-  paste("/home/ktaylora/Projects/nm_audubon_habitat_modeling/study_",
+  paste("/home/ktaylora/Incoming/nm_audubon_habitat_modeling/study_",
   "region_convex_hull_usng_units.shp", sep="")
 )
 all_imbcr_transects <- OpenIMBCR:::readOGRfromPath(
-  paste("/home/ktaylora/Projects/nm_audubon_habitat_modeling/all_",
+  paste("/home/ktaylora/Incoming/nm_audubon_habitat_modeling/all_",
   "transects_for_mapping.shp", sep="")
 )
 # spatial join the 1-km2 USNG grid units with the IMBCR transects
@@ -831,7 +846,11 @@ transect_usng_units@data[, as.character(configuration_statistics[1])] <-
   unlist(sapply(X=focal, FUN=OpenIMBCR:::calc_patch_count))
 
 
-# fit our habitat model
+# back-fill any NA values with 0's for our landscape metrics
+transect_usng_units@data$grass_ar[is.na(transect_usng_units@data$grass_ar)] <- 0
+transect_usng_units@data$shrub_ar[is.na(transect_usng_units@data$shrub_ar)] <- 0
+transect_usng_units@data$wetland_ar[is.na(transect_usng_units@data$wetland_ar)] <- 0
+transect_usng_units@data$pat_ct[is.na(transect_usng_units@data$pat_ct)] <- 0
 
 # these are the columns that we are going to merge-in for exposure to
 # our models
@@ -897,6 +916,68 @@ cat(" -- regional pop:",
 cat(" -- ranch pop:",
   ranch_pop_size_est, "(", ranch_pop_size_est_se,")\n",
   sep=""
+)
+
+# Cohen's d power analysis under different assumptions of sampling effort
+# (i.e., how low can we go on IMBCR stations). This is going to be a little
+# different, because we are going to use only the removal count data without
+# any distance adjustments to model abundance
+
+raw_transect_data <- rgdal::readOGR(
+  "all_grids.json",
+  verbose=F
+)
+
+FOCAL_TRANSECTS <- as.character(raw_transect_data$transectnum)
+YEAR_SAMPLED <- as.character(raw_transect_data$year)
+
+# treat transect-years as independent site-level observations
+raw_transect_data$transectnum <- paste(
+  FOCAL_TRANSECTS,
+  YEAR_SAMPLED,
+  sep = "-"
+)
+
+removal_detections <- calc_pooled_cluster_count_by_transect(
+  imbcr_df = raw_transect_data,
+  four_letter_code = BIRD_CODE,
+  use_cl_count_field = T,
+  limit_to_n_stations = 4
+)
+
+# merge our minute intervals into two-minute intervals
+removal_detections$y <- cbind(
+  rowSums(adj_removal_detections$y[, c(1:2)]),
+  rowSums(adj_removal_detections$y[, c(3:4)]),
+  rowSums(adj_removal_detections$y[, c(5:6)])
+)
+
+# merge in our site-level covariates from the last go-around 
+# at adjusted removal modeling
+removal_detections$data <- cbind(
+  removal_detections$data, 
+  adj_removal_detections$data[,4:ncol(adj_removal_detections$data)]
+)
+
+umdf <- unmarked::unmarkedFrameMPois(
+  y = removal_detections$y,
+  siteCovs = removal_detections$data,
+  type = "removal"
+)
+
+null_model_formula <- paste(
+  "~1 ~1 + as.factor(year) + offset(log(effort))"
+)
+
+full_model_formula <- paste(
+  "~1 ~1 + grass_ar + shrub_ar + pat_ct + as.factor(year) + offset(log(effort))"
+)
+
+test <- bs_est_cohens_f_power(
+  m_0_formula=null_model_formula, 
+  m_1_formula=full_model_formula, 
+  bird_data=umdf, 
+  n_transects=98
 )
 
 # flush our session to disk and exit
