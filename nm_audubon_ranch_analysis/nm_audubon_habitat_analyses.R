@@ -646,7 +646,7 @@ fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det
 
 bs_cohens_f_power_by_station_transect_n <- function(adj_removal_detections=NULL, n_transects=NULL, n_stations=NULL){
   raw_transect_data <- rgdal::readOGR(
-    "all_grids.json",
+    "vector/all_grids.json",
     verbose=F
   )
 
@@ -712,7 +712,7 @@ require(OpenIMBCR)
 require(raster)
 
 raw_transect_data <- rgdal::readOGR(
-  "all_grids.json",
+  "vector/all_grids.json",
   verbose=F
 )
 
@@ -759,6 +759,9 @@ adj_removal_detections <- calc_pooled_cluster_count_by_transect(
   use_cl_count_field = T
 )
 
+# clean-up 
+rm(raw_transect_data)
+
 # merge our minute intervals into two-minute intervals
 adj_removal_detections$y <- cbind(
   rowSums(adj_removal_detections$y[, c(1:2)]),
@@ -770,7 +773,7 @@ adj_removal_detections$y <- cbind(
 adj_removal_detections$data$ranch_status <-
   as.numeric(grepl(adj_removal_detections$data$transectnum, pattern="RANCH"))
 
-umdf <- unmarked::unmarkedFrameMPois(
+adj_umdf <- unmarked::unmarkedFrameMPois(
   y = adj_removal_detections$y,
   siteCovs = adj_removal_detections$data,
   type = "removal"
@@ -779,13 +782,13 @@ umdf <- unmarked::unmarkedFrameMPois(
 intercept_adj_removal_m <- unmarked::multinomPois(
   ~1 ~ as.factor(year) + offset(log(effort)),
   se = T,
-  umdf
+  adj_umdf
 )
 
 ranch_status_adj_removal_m <- unmarked::multinomPois(
   ~1 ~ as.factor(ranch_status) + as.factor(year) + offset(log(effort)),
   se = T,
-  umdf
+  adj_umdf
 )
 # propotion of variance explained by adding our ranch covariate?
 cat(" -- null model r-squared:",
@@ -808,11 +811,11 @@ YEAR_SAMPLED <- sapply(
 )
 
 usng_units <- OpenIMBCR:::readOGRfromPath(
-  paste("/home/ktaylora/Incoming/nm_audubon_habitat_modeling/study_",
+  paste("/home/ktaylora/Incoming/nm_audubon_habitat_modeling/vector/study_",
   "region_convex_hull_usng_units.shp", sep="")
 )
 all_imbcr_transects <- OpenIMBCR:::readOGRfromPath(
-  paste("/home/ktaylora/Incoming/nm_audubon_habitat_modeling/all_",
+  paste("/home/ktaylora/Incoming/nm_audubon_habitat_modeling/vector/all_",
   "transects_for_mapping.shp", sep="")
 )
 # spatial join the 1-km2 USNG grid units with the IMBCR transects
