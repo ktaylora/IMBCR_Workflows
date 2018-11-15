@@ -711,6 +711,11 @@ require(unmarked)
 require(OpenIMBCR)
 require(raster)
 
+setwd("/home/ktaylora/Incoming/nm_audubon_habitat_modeling")
+
+cat(" -- power analysis and density modeling workflow for:", BIRD_CODE, "\n");
+cat(" -- building a two-step hinge model (distance + removal) without habitat data\n");
+
 raw_transect_data <- rgdal::readOGR(
   "vector/all_grids.json",
   verbose=F
@@ -800,6 +805,8 @@ cat(" -- alternative model r-squared:",
     "\n"
 )
 # add-in our habitat covariates, calculated by-grid unit
+cat(" -- adding-in NASS-CDL covariates to two-step hinge model (distance + removal)\n");
+
 FOCAL_TRANSECTS <- sapply(
   adj_removal_detections$data$transectnum,
   FUN=function(x) paste(unlist(strsplit(as.character(x), split="-"))[1:3], collapse="-")
@@ -943,25 +950,25 @@ ranch_pop_size_est <- round(72.843416 * mean_density)
 ranch_pop_size_est_se <- round(72.843416 * mean_density_se)
 
 cat(
-  " -- density:",
+  " -- avg. density:",
   mean_density, "(", mean_density_se,")\n",
   sep=""
 )
-cat(" -- regional pop:",
+cat(" -- regional pop size estimate (in millions):",
   round(regional_pop_size_est/1000000, 1),
   "(", round(regional_pop_size_est_se/1000000, 1),")\n",
   sep=""
 )
-cat(" -- ranch pop:",
+cat(" -- ranch pop (absolute):",
   ranch_pop_size_est, "(", ranch_pop_size_est_se,")\n",
   sep=""
 )
 
-# Cohen's d power analysis under different assumptions of sampling effort
+# Cohen's f power analysis under different assumptions of sampling effort
 # (i.e., how low can we go on IMBCR stations). This is going to be a little
 # different, because we are going to use only the removal count data without
 # any distance adjustments to model abundance
-
+cat(" -- performing step-wise cohen's f power analysis\n")
 cohens_f_results <- rbind(
   data.frame(n_station=4, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=4))),
   data.frame(n_station=8, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=8))),
@@ -969,6 +976,7 @@ cohens_f_results <- rbind(
 )
 
 # flush our session to disk and exit
+cat(" -- saving workspace to disc\n")
 r_data_file <- tolower(paste(
   tolower(BIRD_CODE),
   "_imbcr_hinge_modeling_workflow_",
