@@ -796,11 +796,11 @@ ranch_status_adj_removal_m <- unmarked::multinomPois(
   adj_umdf
 )
 # propotion of variance explained by adding our ranch covariate?
-cat(" -- null model r-squared:",
+cat(" -- null model (year as covariate) r-squared:",
     est_pseudo_rsquared(intercept_adj_removal_m),
     "\n"
 )
-cat(" -- alternative model r-squared:",
+cat(" -- alternative model (ranch status covariate) r-squared:",
     est_pseudo_rsquared(ranch_status_adj_removal_m),
     "\n"
 )
@@ -862,10 +862,10 @@ configuration_statistics <- c(
     'pat_ct'
 )
 # process our NASS-CDL composition statistics iteratively
-usda_nass_by_unit <- OpenIMBCR:::extract_by(
+usda_nass_by_unit <- suppressWarnings(OpenIMBCR:::extract_by(
   lapply(1:nrow(transect_usng_units), FUN=function(i) transect_usng_units[i,]),
   usda_nass
-)
+))
 for(i in 1:nrow(area_statistics)){
   focal <- OpenIMBCR:::binary_reclassify(
     usda_nass_by_unit,
@@ -936,7 +936,15 @@ full_model_adj_removal_m <- unmarked::multinomPois(
   se = T,
   adj_umdf
 )
-
+# propotion of variance explained by adding our habitat covariates?
+cat(" -- null model (habitat covariates, no ranch status) r-squared:",
+    est_pseudo_rsquared(full_model_adj_removal_m),
+    "\n"
+)
+cat(" -- alternative model (habitat covariates + ranch status covariate) r-squared:",
+    est_pseudo_rsquared(full_model_ranch_status_adj_removal_m),
+    "\n"
+)
 # density
 mean_density <- median(
   unmarked::predict(full_model_adj_removal_m, type="state")[,1])
@@ -950,16 +958,16 @@ ranch_pop_size_est <- round(72.843416 * mean_density)
 ranch_pop_size_est_se <- round(72.843416 * mean_density_se)
 
 cat(
-  " -- avg. density:",
+  " -- habitat model avg. predicted bird density (birds/km2): ",
   mean_density, "(", mean_density_se,")\n",
   sep=""
 )
-cat(" -- regional pop size estimate (in millions):",
+cat(" -- regional pop size estimate (in millions): ",
   round(regional_pop_size_est/1000000, 1),
   "(", round(regional_pop_size_est_se/1000000, 1),")\n",
   sep=""
 )
-cat(" -- ranch pop (absolute):",
+cat(" -- ranch pop (absolute): ",
   ranch_pop_size_est, "(", ranch_pop_size_est_se,")\n",
   sep=""
 )
