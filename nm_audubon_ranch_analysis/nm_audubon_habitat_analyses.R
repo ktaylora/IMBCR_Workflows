@@ -979,6 +979,7 @@ cat(" -- ranch pop (absolute): ",
 cat(" -- performing step-wise cohen's f power analysis\n")
 cohens_f_results <- rbind(
   data.frame(n_station=4, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=4))),
+  data.frame(n_station=6, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=6))),
   data.frame(n_station=8, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=8))),
   data.frame(n_station=16, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=16)))
 )
