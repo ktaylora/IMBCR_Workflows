@@ -797,11 +797,11 @@ ranch_status_adj_removal_m <- unmarked::multinomPois(
 )
 # propotion of variance explained by adding our ranch covariate?
 cat(" -- null model (year as covariate) r-squared:",
-    est_pseudo_rsquared(intercept_adj_removal_m),
+    round(est_pseudo_rsquared(intercept_adj_removal_m), 2),
     "\n"
 )
 cat(" -- alternative model (ranch status covariate) r-squared:",
-    est_pseudo_rsquared(ranch_status_adj_removal_m),
+    round(est_pseudo_rsquared(ranch_status_adj_removal_m), 2),
     "\n"
 )
 # add-in our habitat covariates, calculated by-grid unit
@@ -938,11 +938,11 @@ full_model_adj_removal_m <- unmarked::multinomPois(
 )
 # propotion of variance explained by adding our habitat covariates?
 cat(" -- null model (habitat covariates, no ranch status) r-squared:",
-    est_pseudo_rsquared(full_model_adj_removal_m),
+    round(est_pseudo_rsquared(full_model_adj_removal_m), 2),
     "\n"
 )
 cat(" -- alternative model (habitat covariates + ranch status covariate) r-squared:",
-    est_pseudo_rsquared(full_model_ranch_status_adj_removal_m),
+    round(est_pseudo_rsquared(full_model_ranch_status_adj_removal_m), 2),
     "\n"
 )
 # density
@@ -959,12 +959,12 @@ ranch_pop_size_est_se <- round(72.843416 * mean_density_se)
 
 cat(
   " -- habitat model avg. predicted bird density (birds/km2): ",
-  mean_density, "(", mean_density_se,")\n",
+  round(mean_density,2), "(", round(mean_density_se,2),")\n",
   sep=""
 )
 cat(" -- regional pop size estimate (in millions): ",
-  round(regional_pop_size_est/1000000, 1),
-  "(", round(regional_pop_size_est_se/1000000, 1),")\n",
+  round(regional_pop_size_est/1000000, 2),
+  "(", round(regional_pop_size_est_se/1000000, 2),")\n",
   sep=""
 )
 cat(" -- ranch pop (absolute): ",
