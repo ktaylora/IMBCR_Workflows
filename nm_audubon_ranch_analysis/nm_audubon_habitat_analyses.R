@@ -5,7 +5,7 @@
 ARGV = commandArgs(trailingOnly = T)
 MAXIMUM_DISTANCE_QUANTILE = 0.9 # censor observations out in the right-tail
 BIRD_CODE = ifelse(is.na(ARGV[1]), "WEME", toupper(ARGV[1]))
-N_BS_REPLICATES = 200
+N_BS_REPLICATES = 999
 
 #
 # LOCAL FUNCTIONS
@@ -27,29 +27,6 @@ shuffle <- function(umdf=NULL, n=NULL, replace=T){
     ret@tlength <- rep(1, length(rows_to_keep))
   }
   return(ret)
-}
-#' will return only the first N stations in an IMBCR data.frame;
-#' this is a precursor to shuffle(), which samples all transects
-#' with replacement
-downsample_imbcr_stations <- function(imbcr_df=NULL, n=NULL, method="increasing"){
-  transects <- unique(imbcr_df$transectnum)
-  downsampled_transects <- lapply(
-    X=transects,
-    FUN=function(transect){
-      transect <- imbcr_df[imbcr_df$transectnum == transect ,]
-      # should we just take the first n stations, or sample randomly?
-      if(method=="increasing"){
-        points <- sort(unique(transect$point), decreasing=F)[1:n]
-      } else {
-        points <- sample(unique(transect$point), size=n)
-      }
-      # return the downsample for this transect 
-      # for an rbind operation
-      return(transect[transect$point %in% points,])
-    }
-  )
-  # rbind and return to user
-  return(do.call(rbind, downsampled_transects))
 }
 #' hidden shorthand function will reverse a scale() operation on a scaled data.frame,
 #' using a previously-fit m_scale scale() object
@@ -339,7 +316,7 @@ bs_est_cohens_d_power <- function(formula=NULL, bird_data=NULL, n=154,
       cl,
       varlist = c("shuffle",
                 "est_pseudo_rsquared", "est_k_parameters", "est_residual_mse",
-                "est_residual_sse","N_BS_REPLICATES", "backscale_var",
+                "N_BS_REPLICATES", "backscale_var",
                 "est_cohens_d_power"),
       envir = globalenv()
     )
@@ -667,6 +644,65 @@ fit_intercept_only_distance_model <- function(raw_transect_data=NULL, verify_det
   return(intercept_distance_m)
 }
 
+bs_cohens_f_power_by_station_transect_n <- function(adj_removal_detections=NULL, n_transects=NULL, n_stations=NULL){
+  raw_transect_data <- rgdal::readOGR(
+    "all_grids.json",
+    verbose=F
+  )
+
+  FOCAL_TRANSECTS <- as.character(raw_transect_data$transectnum)
+  YEAR_SAMPLED <- as.character(raw_transect_data$year)
+
+  # treat transect-years as independent site-level observations
+  raw_transect_data$transectnum <- paste(
+    FOCAL_TRANSECTS,
+    YEAR_SAMPLED,
+    sep = "-"
+  )
+
+  removal_detections <- calc_pooled_cluster_count_by_transect(
+    imbcr_df = raw_transect_data,
+    four_letter_code = BIRD_CODE,
+    use_cl_count_field = T,
+    limit_to_n_stations = n_stations
+  )
+
+  # merge our minute intervals into two-minute intervals
+  removal_detections$y <- cbind(
+    rowSums(removal_detections$y[, c(1:2)]),
+    rowSums(removal_detections$y[, c(3:4)]),
+    rowSums(removal_detections$y[, c(5:6)])
+  )
+
+  # merge in our site-level covariates from the last go-around 
+  # at adjusted removal modeling
+  removal_detections$data <- cbind(
+    removal_detections$data, 
+    adj_removal_detections$data[,4:ncol(adj_removal_detections$data)]
+  )
+
+  umdf <- unmarked::unmarkedFrameMPois(
+    y = removal_detections$y,
+    siteCovs = removal_detections$data,
+    type = "removal"
+  )
+
+  null_model_formula <- paste(
+    "~1 ~ as.factor(year) + offset(log(effort))"
+  )
+
+  full_model_formula <- paste(
+    "~1 ~ grass_ar + shrub_ar + pat_ct + as.factor(year) + offset(log(effort))"
+  )
+
+  return(bs_est_cohens_f_power(
+    m_0_formula=null_model_formula, 
+    m_1_formula=full_model_formula, 
+    bird_data=umdf, 
+    n_transects=n_transects
+  ))
+}
+
 #
 # MAIN
 #
@@ -865,7 +901,7 @@ adj_removal_detections$data <- cbind(
   transect_usng_units@data[,cols]
 )
 
-umdf <- unmarked::unmarkedFrameMPois(
+adj_umdf <- unmarked::unmarkedFrameMPois(
   y = adj_removal_detections$y,
   siteCovs = adj_removal_detections$data,
   type = "removal"
@@ -882,13 +918,13 @@ full_model_minus_ranch_cov_formula <- paste(
 full_model_ranch_status_adj_removal_m <- unmarked::multinomPois(
   as.formula(full_model_formula),
   se = T,
-  umdf
+  adj_umdf
 )
 
 full_model_adj_removal_m <- unmarked::multinomPois(
   as.formula(full_model_minus_ranch_cov_formula),
   se = T,
-  umdf
+  adj_umdf
 )
 
 # density
@@ -923,61 +959,10 @@ cat(" -- ranch pop:",
 # different, because we are going to use only the removal count data without
 # any distance adjustments to model abundance
 
-raw_transect_data <- rgdal::readOGR(
-  "all_grids.json",
-  verbose=F
-)
-
-FOCAL_TRANSECTS <- as.character(raw_transect_data$transectnum)
-YEAR_SAMPLED <- as.character(raw_transect_data$year)
-
-# treat transect-years as independent site-level observations
-raw_transect_data$transectnum <- paste(
-  FOCAL_TRANSECTS,
-  YEAR_SAMPLED,
-  sep = "-"
-)
-
-removal_detections <- calc_pooled_cluster_count_by_transect(
-  imbcr_df = raw_transect_data,
-  four_letter_code = BIRD_CODE,
-  use_cl_count_field = T,
-  limit_to_n_stations = 4
-)
-
-# merge our minute intervals into two-minute intervals
-removal_detections$y <- cbind(
-  rowSums(adj_removal_detections$y[, c(1:2)]),
-  rowSums(adj_removal_detections$y[, c(3:4)]),
-  rowSums(adj_removal_detections$y[, c(5:6)])
-)
-
-# merge in our site-level covariates from the last go-around 
-# at adjusted removal modeling
-removal_detections$data <- cbind(
-  removal_detections$data, 
-  adj_removal_detections$data[,4:ncol(adj_removal_detections$data)]
-)
-
-umdf <- unmarked::unmarkedFrameMPois(
-  y = removal_detections$y,
-  siteCovs = removal_detections$data,
-  type = "removal"
-)
-
-null_model_formula <- paste(
-  "~1 ~1 + as.factor(year) + offset(log(effort))"
-)
-
-full_model_formula <- paste(
-  "~1 ~1 + grass_ar + shrub_ar + pat_ct + as.factor(year) + offset(log(effort))"
-)
-
-test <- bs_est_cohens_f_power(
-  m_0_formula=null_model_formula, 
-  m_1_formula=full_model_formula, 
-  bird_data=umdf, 
-  n_transects=98
+cohens_f_results <- rbind(
+  data.frame(n_station=4, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=4))),
+  data.frame(n_station=8, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=8))),
+  data.frame(n_station=16, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=16)))
 )
 
 # flush our session to disk and exit
