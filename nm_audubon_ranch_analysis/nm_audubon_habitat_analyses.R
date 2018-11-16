@@ -5,7 +5,7 @@
 ARGV = commandArgs(trailingOnly = T)
 MAXIMUM_DISTANCE_QUANTILE = 0.9 # censor observations out in the right-tail
 BIRD_CODE = ifelse(is.na(ARGV[1]), "WEME", toupper(ARGV[1]))
-N_BS_REPLICATES = 999
+N_BS_REPLICATES = 9999
 
 #
 # LOCAL FUNCTIONS
@@ -978,10 +978,10 @@ cat(" -- ranch pop (absolute): ",
 # any distance adjustments to model abundance
 cat(" -- performing step-wise cohen's f power analysis\n")
 cohens_f_results <- rbind(
-  data.frame(n_station=4, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=4))),
-  data.frame(n_station=6, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=6))),
-  data.frame(n_station=8, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=8))),
-  data.frame(n_station=16, n_transects=30, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=16)))
+  data.frame(n_station=4, n_transects=40, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=4))),
+  data.frame(n_station=6, n_transects=40, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=6))),
+  data.frame(n_station=8, n_transects=40, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=8))),
+  data.frame(n_station=16, n_transects=40, cohens_f=mean(na.rm=T, bs_cohens_f_power_by_station_transect_n(adj_removal_detections, n_transects=30, n_stations=16)))
 )
 
 # flush our session to disk and exit
